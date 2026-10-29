@@ -198,6 +198,7 @@ export default function App() {
                 <Route path="/catalog" element={<Navigate to="/projects" replace />} />
                 <Route path="/projects/new" element={<ProjectEditorPage />} />
                 <Route path="/projects/:id" element={<ProjectEditorPage />} />
+                <Route path="/projects/:id/edit" element={<ProjectEditorPage />} />
                 <Route path="/properties" element={<Navigate to="/projects" replace />} />
                 <Route path="/assets" element={<MediaLibraryPage />} />
                 <Route path="/media" element={<Navigate to="/assets" replace />} />
