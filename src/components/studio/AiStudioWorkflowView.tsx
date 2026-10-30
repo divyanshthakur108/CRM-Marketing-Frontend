@@ -69,8 +69,11 @@ export function AiStudioWorkflowView({
   useEffect(() => {
     if (initialProjectId && initialProjectId !== projectId) {
       setProjectId(initialProjectId);
+    } else if (!projectId && projects && projects.length > 0) {
+      const firstId = projects[0]._id || projects[0].id || '';
+      if (firstId) setProjectId(firstId);
     }
-  }, [initialProjectId, projectId]);
+  }, [initialProjectId, projectId, projects]);
 
   const handleProjectChange = (newId: string) => {
     setProjectId(newId);
@@ -1099,7 +1102,7 @@ export function AiStudioWorkflowView({
                 >
                   {batches.map((b) => (
                     <option key={b._id} value={b._id}>
-                      Generation {b.version} ({b.images.length} images) · {formatDisplayDate(b.createdAt)}
+                      Generation {b.version} ({b.images?.length || 0} images) · {formatDisplayDate(b.createdAt)}
                     </option>
                   ))}
                 </select>
