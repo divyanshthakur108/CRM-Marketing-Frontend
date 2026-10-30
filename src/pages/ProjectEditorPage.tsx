@@ -218,9 +218,19 @@ export function ProjectEditorPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const isEditing = Boolean(id && id !== 'new');
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  const isValidId = Boolean(id && id !== 'new' && id !== 'media' && id !== 'undefined' && id !== 'null');
+  const isEditing = isValidId;
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
-  const effectiveProjectId = id && id !== 'new' ? id : createdProjectId || '';
+  const effectiveProjectId = isValidId ? id! : createdProjectId || '';
+
+  useEffect(() => {
+    if (id === 'media') {
+      navigate('/assets', { replace: true });
+    }
+  }, [id, navigate]);
 
   // React Query Hooks
   const { data: project, isLoading: isProjectLoading, refetch: refetchProject } = useProject(effectiveProjectId);
@@ -236,14 +246,11 @@ export function ProjectEditorPage() {
   const manualGenerateCreativesMutation = useManualGenerateCreatives();
 
   // Form Section Navigation State
+  const initialSection = Number(searchParams.get('section')) || 1;
   const [activeTab, setActiveTab] = useState<'details' | 'units'>('details');
-  const [currentSection, setCurrentSection] = useState<number>(1);
+  const [currentSection, setCurrentSection] = useState<number>(initialSection);
   const [isSavingSection, setIsSavingSection] = useState<boolean>(false);
   const [autoSaveTime, setAutoSaveTime] = useState<string>('Just now');
-
-  // Submit Flow & Validation Banner State
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
   const [summaryIssues, setSummaryIssues] = useState<Array<{ section: number; field: string; message: string }>>([]);
   const [invalidSectionIds, setInvalidSectionIds] = useState<number[]>([]);
   const [isSubmittingFinal, setIsSubmittingFinal] = useState<boolean>(false);

@@ -718,7 +718,7 @@ export function AiStudioWorkflowView({
                     )}
                   </button>
                   <Link
-                    to={`/projects/${projectId}/media`}
+                    to={projectId ? `/assets?projectId=${projectId}` : '/assets'}
                     className="h-8 px-2.5 rounded-lg border border-neutral-200 hover:border-neutral-400 bg-neutral-50 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 flex items-center gap-1.5 transition-all"
                   >
                     <FolderOpen className="w-3.5 h-3.5 text-neutral-600" />
@@ -746,7 +746,7 @@ export function AiStudioWorkflowView({
                     Upload interior and exterior photos to run property vision analysis.
                   </p>
                   <Link
-                    to={`/projects/${projectId}/media`}
+                    to={projectId ? `/assets?projectId=${projectId}` : '/assets'}
                     className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 bg-neutral-900 text-white text-xs font-medium rounded-lg hover:bg-black transition-all"
                   >
                     <span>Upload Property Media</span>

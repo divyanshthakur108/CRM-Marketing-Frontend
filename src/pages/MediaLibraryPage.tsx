@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import {
   useMedia,
@@ -43,9 +44,11 @@ import {
 
 export function MediaLibraryPage() {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [projectFilter, setProjectFilter] = useState('ALL');
+  const initialProject = searchParams.get('projectId') || 'ALL';
+  const [projectFilter, setProjectFilter] = useState(initialProject);
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [ratioFilter, setRatioFilter] = useState('ALL');
   const [approvalFilter, setApprovalFilter] = useState('ALL');
