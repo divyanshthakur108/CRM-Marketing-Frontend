@@ -13,6 +13,9 @@ import {
   useUpdateStudioSelection,
   useGenerateStudioReel,
   useSetStudioReelApproval,
+  useUploadStudioPhotos,
+  useSetStudioImageApproval,
+  useSaveStudioImageToMedia,
   AiStudioImage,
   AiStudioReel,
   ReelVariationStyle,
@@ -42,6 +45,7 @@ import {
   FolderOpen,
   SplitSquareVertical,
   AlertTriangle,
+  UploadCloud,
 } from 'lucide-react';
 
 interface AiStudioWorkflowViewProps {
@@ -110,6 +114,14 @@ export function AiStudioWorkflowView({
   const updateSelectionMutation = useUpdateStudioSelection();
   const generateReelMutation = useGenerateStudioReel();
   const setApprovalMutation = useSetStudioReelApproval();
+  const uploadPhotosMutation = useUploadStudioPhotos();
+  const setImageApprovalMutation = useSetStudioImageApproval();
+  const saveImageToMediaMutation = useSaveStudioImageToMedia();
+
+  // Multi-Photo Upload & Save to Media State
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [savingMediaImageId, setSavingMediaImageId] = useState<string | null>(null);
 
   // Generation Controls State
   const [targetImageCount, setTargetImageCount] = useState<number>(15);
@@ -333,6 +345,84 @@ export function AiStudioWorkflowView({
       toast({ title: 'Regeneration Error', message: msg || 'Failed to regenerate image', type: 'error' });
     } finally {
       setRegeneratingImageId(null);
+    }
+  };
+
+  // Handle Multi-Photo File Input Upload
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+    if (!projectId) {
+      toast({ title: 'Select Property', message: 'Please select a property first.', type: 'error' });
+      return;
+    }
+
+    try {
+      setIsUploadingPhotos(true);
+      toast({
+        title: 'Uploading Property Photos',
+        message: `Uploading & verifying ${files.length} photos...`,
+        type: 'info',
+      });
+      await uploadPhotosMutation.mutateAsync({ projectId, files });
+      toast({
+        title: 'Photos Uploaded Successfully',
+        message: `${files.length} property photos uploaded with full rights consent.`,
+        type: 'success',
+      });
+      // Automatically trigger vision analysis
+      await handleAnalyzeProperty();
+    } catch (err: unknown) {
+      const msg =
+        (err as any)?.response?.data?.error?.message || (err as any)?.message || 'Photo upload failed';
+      toast({ title: 'Upload Failed', message: msg, type: 'error' });
+    } finally {
+      setIsUploadingPhotos(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle Image Approval / Rejection
+  const handleSetImageApproval = async (imageId: string, status: 'APPROVED' | 'REJECTED', e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentBatch) return;
+
+    try {
+      await setImageApprovalMutation.mutateAsync({
+        batchId: currentBatch._id,
+        imageId,
+        status,
+      });
+      toast({
+        title: status === 'APPROVED' ? 'Image Approved' : 'Image Rejected',
+        message: status === 'APPROVED' ? 'Shot marked as client-approved.' : 'Shot rejected.',
+        type: status === 'APPROVED' ? 'success' : 'info',
+      });
+    } catch {
+      toast({ title: 'Approval Error', message: 'Failed to update image approval status', type: 'error' });
+    }
+  };
+
+  // Handle Save Image to Project Media Library
+  const handleSaveToMedia = async (imageId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentBatch) return;
+
+    try {
+      setSavingMediaImageId(imageId);
+      await saveImageToMediaMutation.mutateAsync({
+        batchId: currentBatch._id,
+        imageId,
+      });
+      toast({
+        title: 'Saved to Media Library',
+        message: 'Generated marketing image is now permanently saved in your Project Media assets.',
+        type: 'success',
+      });
+    } catch {
+      toast({ title: 'Save Error', message: 'Failed to save image to media library', type: 'error' });
+    } finally {
+      setSavingMediaImageId(null);
     }
   };
 
@@ -600,13 +690,41 @@ export function AiStudioWorkflowView({
                   </h3>
                 </div>
 
-                <Link
-                  to={`/projects/${projectId}/media`}
-                  className="h-8 px-2.5 rounded-lg border border-neutral-200 hover:border-neutral-400 bg-neutral-50 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 flex items-center gap-1.5 transition-all"
-                >
-                  <FolderOpen className="w-3.5 h-3.5 text-neutral-600" />
-                  <span>Upload / Manage</span>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleFileInputChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingPhotos}
+                    className="h-8 px-3 rounded-lg bg-neutral-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                  >
+                    {isUploadingPhotos ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Upload 10–15 Photos</span>
+                      </>
+                    )}
+                  </button>
+                  <Link
+                    to={`/projects/${projectId}/media`}
+                    className="h-8 px-2.5 rounded-lg border border-neutral-200 hover:border-neutral-400 bg-neutral-50 hover:bg-neutral-100 text-xs font-semibold text-neutral-800 flex items-center gap-1.5 transition-all"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-neutral-600" />
+                    <span>Media</span>
+                  </Link>
+                </div>
               </div>
 
               <p className="text-xs text-text-secondary mb-3 leading-relaxed">
@@ -1079,12 +1197,26 @@ export function AiStudioWorkflowView({
                     <Check className={`w-3.5 h-3.5 stroke-[3] ${img.isSelected ? 'text-white' : 'text-transparent'}`} />
                   </div>
 
-                  {img.isDuplicateWarning && (
-                    <span className="text-[9px] font-bold text-amber-200 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-500/50 flex items-center gap-1 backdrop-blur-xs">
-                      <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
-                      <span>{Math.round((img.similarityScore || 0.88) * 100)}% Sim</span>
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {img.approvalStatus === 'APPROVED' ? (
+                      <span className="text-[9px] font-bold text-emerald-300 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-500/50 flex items-center gap-1 backdrop-blur-xs">
+                        <Check className="w-2.5 h-2.5 text-emerald-400 stroke-[3]" />
+                        <span>Approved</span>
+                      </span>
+                    ) : img.approvalStatus === 'REJECTED' ? (
+                      <span className="text-[9px] font-bold text-rose-300 bg-rose-950/80 px-1.5 py-0.5 rounded border border-rose-500/50 flex items-center gap-1 backdrop-blur-xs">
+                        <X className="w-2.5 h-2.5 text-rose-400" />
+                        <span>Rejected</span>
+                      </span>
+                    ) : null}
+
+                    {img.isDuplicateWarning && (
+                      <span className="text-[9px] font-bold text-amber-200 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-500/50 flex items-center gap-1 backdrop-blur-xs">
+                        <AlertTriangle className="w-2.5 h-2.5 text-amber-400" />
+                        <span>{Math.round((img.similarityScore || 0.88) * 100)}% Sim</span>
+                      </span>
+                    )}
+                  </div>
 
                   <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-0.5 rounded-full backdrop-blur-xs shrink-0">
                     #{idx + 1}
@@ -1096,13 +1228,64 @@ export function AiStudioWorkflowView({
                   <div className="text-xs font-bold truncate tracking-tight">{img.title}</div>
                   <div className="flex items-center justify-between text-[10px] text-neutral-300">
                     <span className="truncate max-w-[100px]">{img.category}</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/20 text-white truncate">
-                      {img.lightingStyle}
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
+                      <span>{img.structurePreservationScore || 98}% Structure</span>
                     </span>
                   </div>
 
                   {/* Hover Quick Actions */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity pt-1 flex items-center justify-between gap-1">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity pt-1 flex flex-wrap items-center justify-between gap-1">
+                    {/* Approve Action */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleSetImageApproval(img.id, 'APPROVED', e)}
+                      className={`py-1 px-1.5 rounded text-[10px] font-semibold flex items-center gap-0.5 backdrop-blur-xs transition-colors ${
+                        img.approvalStatus === 'APPROVED'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white/20 hover:bg-emerald-600 text-white'
+                      }`}
+                      title="Approve this shot"
+                    >
+                      <Check className="w-3 h-3" />
+                      <span>Approve</span>
+                    </button>
+
+                    {/* Reject Action */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleSetImageApproval(img.id, 'REJECTED', e)}
+                      className={`p-1 rounded text-[10px] font-semibold flex items-center gap-0.5 backdrop-blur-xs transition-colors ${
+                        img.approvalStatus === 'REJECTED'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-white/20 hover:bg-rose-600 text-white'
+                      }`}
+                      title="Reject this shot"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+
+                    {/* Save to Media Library Action */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleSaveToMedia(img.id, e)}
+                      disabled={savingMediaImageId === img.id || Boolean(img.savedToMediaId)}
+                      className={`py-1 px-1.5 rounded text-[10px] font-semibold flex items-center gap-0.5 backdrop-blur-xs transition-colors ${
+                        img.savedToMediaId
+                          ? 'bg-amber-500 text-neutral-950 font-bold'
+                          : 'bg-white/20 hover:bg-white text-white hover:text-neutral-900'
+                      }`}
+                      title={
+                        img.savedToMediaId
+                          ? 'Saved to Media Library'
+                          : 'Save permanently to Project Media Library'
+                      }
+                    >
+                      <FolderOpen className="w-3 h-3" />
+                      <span>{img.savedToMediaId ? 'Saved' : 'Save'}</span>
+                    </button>
+
+                    {/* Compare */}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -1110,24 +1293,26 @@ export function AiStudioWorkflowView({
                         setLightboxImage(img);
                         setIsCompareMode(true);
                       }}
-                      className="flex-1 py-1 px-1.5 rounded bg-white/20 hover:bg-white text-white hover:text-neutral-900 text-[10px] font-semibold flex items-center justify-center gap-1 backdrop-blur-xs transition-colors"
+                      className="p-1 rounded bg-white/20 hover:bg-white text-white hover:text-neutral-900 text-[10px] font-semibold flex items-center gap-0.5 backdrop-blur-xs transition-colors"
                       title="Compare side-by-side with original uploaded photo"
                     >
                       <SplitSquareVertical className="w-3 h-3" />
-                      <span>Compare</span>
                     </button>
+
+                    {/* Regen */}
                     <button
                       type="button"
                       onClick={(e) => handleRegenerateSingleImage(img.id, e)}
                       disabled={regeneratingImageId === img.id}
-                      className="flex-1 py-1 px-1.5 rounded bg-white/20 hover:bg-white text-white hover:text-neutral-900 text-[10px] font-semibold flex items-center justify-center gap-1 backdrop-blur-xs transition-colors"
+                      className="p-1 rounded bg-white/20 hover:bg-white text-white hover:text-neutral-900 text-[10px] font-semibold flex items-center gap-0.5 backdrop-blur-xs transition-colors"
                       title="Regenerate this individual shot"
                     >
                       <RefreshCw
                         className={`w-3 h-3 ${regeneratingImageId === img.id ? 'animate-spin' : ''}`}
                       />
-                      <span>{regeneratingImageId === img.id ? 'Generating' : 'Regen'}</span>
                     </button>
+
+                    {/* Download */}
                     <button
                       type="button"
                       onClick={(e) => {

@@ -31,6 +31,12 @@ export interface AiStudioImage {
   visualHash?: string;
   similarityScore?: number;
   isDuplicateWarning?: boolean;
+  approvalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  isVirtuallyStaged?: boolean;
+  structurePreservationScore?: number;
+  qualityScore?: number;
+  provider?: string;
+  savedToMediaId?: string;
 }
 
 export type ReelVariationStyle = 'CINEMATIC_SHOWCASE' | 'LUXURY_PRESENTATION' | 'MODERN_PROMO_AD';
@@ -69,7 +75,11 @@ export interface AiStudioBatch {
   organizationId: string;
   projectId: string;
   version: number;
-  status: 'IDLE' | 'ANALYZING' | 'GENERATING' | 'READY' | 'FAILED';
+  status: 'IDLE' | 'QUEUED' | 'ANALYZING' | 'GENERATING' | 'READY' | 'FAILED';
+  progress?: number;
+  currentStep?: string;
+  jobId?: string;
+  targetCount?: number;
   visionAnalysis?: PropertyVisionAnalysis;
   images: AiStudioImage[];
   reels: AiStudioReel[];
@@ -104,6 +114,16 @@ export function useAiStudioBatch(batchId: string | null) {
       return res.data.data;
     },
     enabled: Boolean(batchId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (
+        data &&
+        (data.status === 'GENERATING' || data.status === 'ANALYZING' || data.status === 'QUEUED')
+      ) {
+        return 1500;
+      }
+      return false;
+    },
   });
 }
 
@@ -242,6 +262,78 @@ export function useSetStudioReelApproval() {
       queryClient.invalidateQueries({ queryKey: ['ai-studio-batch', batchId] });
       queryClient.invalidateQueries({ queryKey: ['ai-studio-batches'] });
       queryClient.invalidateQueries({ queryKey: ['creatives'] });
+    },
+  });
+}
+
+export function useUploadStudioPhotos() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      files,
+    }: {
+      projectId: string;
+      files: File[];
+    }): Promise<any[]> => {
+      const formData = new FormData();
+      files.forEach((f) => formData.append('files', f));
+      const res = await api.post<{ success: boolean; data: any[] }>(
+        `/ai/projects/${projectId}/studio-upload-photos`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      return res.data.data;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['project-media', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batches', projectId] });
+    },
+  });
+}
+
+export function useSetStudioImageApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      batchId,
+      imageId,
+      status,
+    }: {
+      batchId: string;
+      imageId: string;
+      status: 'APPROVED' | 'REJECTED';
+    }): Promise<AiStudioImage> => {
+      const res = await api.post<{ success: boolean; data: AiStudioImage }>(
+        `/ai/studio-batches/${batchId}/images/${imageId}/approval`,
+        { status }
+      );
+      return res.data.data;
+    },
+    onSuccess: (_, { batchId }) => {
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batch', batchId] });
+    },
+  });
+}
+
+export function useSaveStudioImageToMedia() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      batchId,
+      imageId,
+    }: {
+      batchId: string;
+      imageId: string;
+    }): Promise<any> => {
+      const res = await api.post<{ success: boolean; data: any }>(
+        `/ai/studio-batches/${batchId}/images/${imageId}/save-to-media`
+      );
+      return res.data.data;
+    },
+    onSuccess: (_, { batchId }) => {
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batch', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['project-media'] });
     },
   });
 }
