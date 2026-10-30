@@ -43,6 +43,9 @@ export interface BackendCreativeItem {
   isIllustrative?: boolean;
   occasion?: string;
   extensionType?: 'NONE' | 'AI_CONTINUATION';
+  stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
+  isPresenterWalkthrough?: boolean;
+  presenterScript?: any;
   cost?: number;
   errorMessage?: string;
   renderedAssetUrl?: string;
@@ -345,14 +348,17 @@ export function useGenerateProjectCreatives() {
     mutationFn: async ({
       projectId,
       mode = 'template',
+      stylePreset = 'HERITAGE_LUXURY',
       selectedAssetIds,
     }: {
       projectId: string;
       mode?: 'template' | 'ai_motion';
+      stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
       selectedAssetIds?: string[];
     }) => {
       const res = await api.post(`/ai/projects/${projectId}/generate-creatives`, {
         mode,
+        stylePreset,
         selectedAssetIds,
       });
       return res.data.data;
@@ -466,5 +472,76 @@ export function useGenerateOccasion() {
     },
   });
 }
+
+export function useGeneratePresenterVideo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      unitId,
+      language = 'Hinglish',
+      stylePreset = 'HERITAGE_LUXURY',
+      presenterAssetId,
+      selectedAssetIds,
+    }: {
+      projectId: string;
+      unitId?: string;
+      language?: 'English' | 'Hindi' | 'Hinglish';
+      stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
+      presenterAssetId?: string;
+      selectedAssetIds?: string[];
+    }) => {
+      const res = await api.post(`/ai/projects/${projectId}/generate-presenter-video`, {
+        unitId,
+        language,
+        stylePreset,
+        presenterAssetId,
+        selectedAssetIds,
+      });
+      return res.data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creatives'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export interface CaptionVariantItem {
+  title: string;
+  style: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI' | 'SHORT_REEL';
+  hook: string;
+  body: string;
+  cta: string;
+  legalAndHashtags: string;
+  fullCopy: string;
+}
+
+export function useGenerateCaptions() {
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      unitId,
+      stylePreset = 'HERITAGE_LUXURY',
+    }: {
+      projectId: string;
+      unitId?: string;
+      stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
+    }) => {
+      const res = await api.post<{
+        success: boolean;
+        data: {
+          projectName: string;
+          variants: CaptionVariantItem[];
+        };
+      }>(`/ai/projects/${projectId}/generate-captions`, {
+        unitId,
+        stylePreset,
+      });
+      return res.data.data;
+    },
+  });
+}
+
 
 

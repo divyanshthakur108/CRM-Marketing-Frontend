@@ -39,6 +39,10 @@ import {
   X,
   Check,
   AlertCircle,
+  Sparkles,
+  CheckCircle2,
+  Circle,
+  UserCheck,
 } from 'lucide-react';
 
 interface InFlightUpload {
@@ -93,6 +97,108 @@ export function ProjectMediaSection({ projectId, units = [], readOnly = false }:
 
   const hasApprovedCover = useMemo(() => {
     return mediaList.some((m) => m.isCover && (m.isApproved || m.approvalStatus === 'APPROVED'));
+  }, [mediaList]);
+
+  // AI Content Creation Readiness Analysis (GDPL / ACE Infra regional standards)
+  const aiReadiness = useMemo(() => {
+    const hasHero = mediaList.some(
+      (m) =>
+        m.isCover ||
+        m.category === 'EXTERIOR' ||
+        /facade|elevation|exterior|front|drone/i.test(m.room || '') ||
+        /facade|elevation|exterior|hero/i.test(m.fileName || '')
+    );
+
+    const hasLiving = mediaList.some(
+      (m) =>
+        /living|hall|drawing|lounge/i.test(m.room || '') ||
+        (m.category === 'INTERIOR' && !/bed|kitchen|bath/i.test(m.room || '')) ||
+        /living|hall|drawing/i.test(m.fileName || '')
+    );
+
+    const hasBedroom = mediaList.some(
+      (m) =>
+        /bed|suite|master/i.test(m.room || '') ||
+        (m.category === 'ROOMS' && !/bath/i.test(m.room || '')) ||
+        /bed|suite/i.test(m.fileName || '')
+    );
+
+    const hasKitchen = mediaList.some(
+      (m) =>
+        /kitchen|dining|pantry/i.test(m.room || '') ||
+        /kitchen|dining/i.test(m.fileName || '')
+    );
+
+    const hasBalconyOrAmenity = mediaList.some(
+      (m) =>
+        /balcony|terrace|deck|view|amenity|club|gym|pool/i.test(m.room || '') ||
+        m.category === 'AMENITIES' ||
+        /balcony|amenity|club/i.test(m.fileName || '')
+    );
+
+    const hasPresenterAvatar = mediaList.some(
+      (m) =>
+        /presenter|anchor|host|avatar|speaker|face/i.test(m.room || '') ||
+        /presenter|host|avatar/i.test(m.fileName || '') ||
+        (m.category === 'LOGO' && /host|presenter|avatar/i.test(m.fileName || ''))
+    );
+
+    const slots = [
+      {
+        id: 'hero',
+        label: 'Hero Facade / Elevation',
+        description: 'Crucial for 4:5 Showcase & Act 1 Hook',
+        ready: hasHero,
+        required: true,
+      },
+      {
+        id: 'living',
+        label: 'Living Room / Drawing Hall',
+        description: 'Act 2 spatial walkthrough & top-right thumbnail',
+        ready: hasLiving,
+        required: true,
+      },
+      {
+        id: 'bedroom',
+        label: 'Master Bedroom / Suite',
+        description: 'Act 3 private comfort & mid-right thumbnail',
+        ready: hasBedroom,
+        required: true,
+      },
+      {
+        id: 'kitchen',
+        label: 'Modular Kitchen / Dining',
+        description: 'Act 3 daily luxury & lower-right thumbnail',
+        ready: hasKitchen,
+        required: true,
+      },
+      {
+        id: 'amenity',
+        label: 'Balcony / Amenity / Club',
+        description: 'Act 4 high-life view & urgency CTA scene',
+        ready: hasBalconyOrAmenity,
+        required: true,
+      },
+      {
+        id: 'presenter',
+        label: 'Presenter Avatar / Host Photo',
+        description: 'Verified Host anchor badge on 9:16 vertical walkthrough',
+        ready: hasPresenterAvatar,
+        required: false,
+      },
+    ];
+
+    const coreSlots = slots.filter((s) => s.required);
+    const completedCore = coreSlots.filter((s) => s.ready).length;
+    const percentage = Math.round((completedCore / coreSlots.length) * 100);
+
+    return {
+      slots,
+      percentage,
+      isFullyReady: percentage === 100,
+      hasPresenterAvatar,
+      missingLabels: coreSlots.filter((s) => !s.ready).map((s) => s.label),
+    };
   }, [mediaList]);
 
   // Filter media by active category tab
@@ -399,6 +505,113 @@ export function ProjectMediaSection({ projectId, units = [], readOnly = false }:
           </div>
         </div>
       )}
+
+      {/* AI Content Creation Readiness Checklist (GDPL / ACE Infra standard) */}
+      <div className="p-4 sm:p-5 border border-[#E5E5E5] bg-white rounded-[12px] shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#F0F0F0]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[8px] bg-[#0A0A0A] text-white flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 text-[#F59E0B]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-[14px] font-semibold text-[#0A0A0A]">
+                  AI Studio Readiness Checklist
+                </h4>
+                <span
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    aiReadiness.isFullyReady
+                      ? 'bg-[#DCFCE7] text-[#15803D]'
+                      : 'bg-[#FEF3C7] text-[#B45309]'
+                  }`}
+                >
+                  {aiReadiness.percentage}% Ready
+                </span>
+                {aiReadiness.hasPresenterAvatar && (
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#E0E7FF] text-[#4338CA] flex items-center gap-1">
+                    <UserCheck className="w-3 h-3" /> Host Badge Attached
+                  </span>
+                )}
+              </div>
+              <p className="text-[12px] text-[#737373] mt-0.5">
+                Required for Dual-Style Showcase Posters (GDPL / ACE Infra) &amp; 4-Act Presenter Walkthrough Videos
+              </p>
+            </div>
+          </div>
+
+          {/* Mini Progress Bar */}
+          <div className="w-full sm:w-48 space-y-1">
+            <div className="flex justify-between text-[11px] font-medium text-[#737373]">
+              <span>Core Slots Filled</span>
+              <span>{aiReadiness.slots.filter((s) => s.required && s.ready).length} of 5</span>
+            </div>
+            <div className="w-full bg-[#E5E5E5] h-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  aiReadiness.isFullyReady ? 'bg-[#15803D]' : 'bg-[#0A0A0A]'
+                }`}
+                style={{ width: `${aiReadiness.percentage}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 6 Slots Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {aiReadiness.slots.map((slot) => (
+            <div
+              key={slot.id}
+              className={`p-3 rounded-[8px] border transition-colors flex items-start gap-2.5 ${
+                slot.ready
+                  ? 'bg-[#F0FDF4]/60 border-[#BBF7D0]'
+                  : slot.required
+                  ? 'bg-[#FAFAFA] border-[#E5E5E5]'
+                  : 'bg-[#F8FAFC] border-[#E2E8F0]'
+              }`}
+            >
+              <div className="mt-0.5 shrink-0">
+                {slot.ready ? (
+                  <CheckCircle2 className="w-4 h-4 text-[#15803D]" />
+                ) : (
+                  <Circle className="w-4 h-4 text-[#A3A3A3]" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1">
+                  <span
+                    className={`text-[12px] font-semibold truncate ${
+                      slot.ready ? 'text-[#15803D]' : 'text-[#0A0A0A]'
+                    }`}
+                  >
+                    {slot.label}
+                  </span>
+                  {!slot.required && (
+                    <span className="text-[10px] text-[#737373] bg-[#E5E5E5] px-1.5 py-0.2 rounded font-normal shrink-0">
+                      Optional
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-[#737373] leading-tight mt-0.5">
+                  {slot.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Actionable Prompt if incomplete */}
+        {!aiReadiness.isFullyReady && (
+          <div className="text-[12px] text-[#737373] bg-[#F5F5F5] rounded-[8px] p-2.5 flex items-center justify-between">
+            <span>
+              💡 <strong>Next step:</strong> Upload or tag room photos for{' '}
+              <span className="text-[#0A0A0A] font-medium">
+                {aiReadiness.missingLabels.join(', ')}
+              </span>{' '}
+              to reach 100% video &amp; poster studio fidelity.
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Upload Drop Zone & Limits Display */}
       {!readOnly && (
