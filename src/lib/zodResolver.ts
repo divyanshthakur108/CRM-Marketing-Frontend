@@ -8,7 +8,6 @@ import type { z } from 'zod';
  * Addresses the breaking change where Zod v4 replaced `err.errors` with `err.issues`,
  * which causes @hookform/resolvers/zod to throw unhandled ZodErrors instead of mapping field validation errors.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function zodResolver<T extends z.ZodType<FieldValues, any, any>>(
   schema: T
 ): Resolver<z.infer<T>> {
@@ -29,6 +28,7 @@ export function zodResolver<T extends z.ZodType<FieldValues, any, any>>(
       if (!flatErrors[path]) {
         flatErrors[path] = {
           type: issue.code,
+          
           message: issue.message,
         };
       }

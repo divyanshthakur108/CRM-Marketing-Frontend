@@ -720,9 +720,23 @@ export function ProjectEditorPage() {
         });
       }
     } catch (err: unknown) {
+      const apiErr = err as {
+        response?: {
+          data?: {
+            error?: {
+              message?: string;
+              code?: string;
+            };
+          };
+        };
+      };
+      const displayMessage =
+        apiErr.response?.data?.error?.message ||
+        (err instanceof Error ? err.message : 'Could not save section changes.');
+
       toast({
         title: 'Save Failed',
-        message: err instanceof Error ? err.message : 'Could not save section changes.',
+        message: displayMessage,
         type: 'error',
       });
     } finally {
