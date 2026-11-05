@@ -1,5 +1,7 @@
 # RealCRM Frontend Application
 
+> **Start here:** `docs/OVERVIEW.md` (setup, architecture). Video docs live in the backend repo under `docs/`.
+
 Enterprise Multi-Tenant AI Real Estate Marketing Automation + CRM Web Client.  
 Built with **React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons, and Playwright**.
 

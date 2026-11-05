@@ -41,30 +41,13 @@ export function CaptionStudioPage() {
         id: p._id,
         projectId: p._id,
         projectName: p.name,
-        title: `${p.name} - Official Launch Campaign`,
-        angle: p.category || 'Luxury Residences',
+        title: p.name,
+        angle: p.category || '',
+        // Captions start empty and are only filled by AI generation from the project's real data
         languages: {
-          English: {
-            hook: `Elevate your lifestyle with architectural magnificence at ${p.name}.`,
-            short: `Limited edition residences at ${p.name} are now available for private viewings. Verified RERA credentials and developer incentives.`,
-            long: `Nestled in the prime corridors of ${p.location?.city || 'the metropolis'}, ${p.name} represents the zenith of contemporary residential luxury. Featuring soaring ceilings, private balconies, and world-class leisure amenities. RERA certified: ${p.reraNumber || 'PRM/KA/RERA/2026'}.`,
-            hashtags: ['#LuxuryRealEstate', '#DreamHome', '#ArchitecturalExcellence', '#PropertyInvestment'],
-            cta: 'Schedule Private Tour',
-          },
-          Hindi: {
-            hook: `${p.name} - भव्य और अद्वितीय जीवनशैली का नया प्रतीक`,
-            short: `${p.location?.city || 'शहर के प्राइम लोकेशन'} में स्थित ${p.name} आपके लिए प्रस्तुत करता है विश्वस्तरीय सुख-सुविधाएं। आज ही अपनी व्यक्तिगत साइट विजिट बुक करें।`,
-            long: `${p.location?.city || 'शहर'} में स्थित ${p.name} आपके लिए लाया है अद्वितीय जीवन शैली। प्रीमियम आवास उचित मूल्य पर उपलब्ध। रेरा प्रमाणित प्रोजेक्ट। अधिक जानकारी और साइट विजिट के लिए संपर्क करें।`,
-            hashtags: ['#लग्जरीहोम्स', '#सपनोंकाघर', '#रियलएस्टेट', '#रेराप्रमाणित'],
-            cta: 'साइट विजिट बुक करें',
-          },
-          Hinglish: {
-            hook: `${p.name} - Luxury living ka ultimate destination!`,
-            short: `${p.location?.city || 'Prime city location'} me experience karein ultra-luxury living with ${p.name}. Call us today exclusive site tour ke liye!`,
-            long: `${p.location?.city || 'Prime location'} ke heart me situated, ${p.name} offers unprecedented elegance. Premium residences ab booking ke liye open hain. RERA verified project with verified price specs.`,
-            hashtags: ['#LuxuryLiving', '#DreamHome', '#MumbaiHomes', '#RERAVerified'],
-            cta: 'Book Exclusive Tour',
-          },
+          English: { hook: '', short: '', long: '', hashtags: [], cta: '' },
+          Hindi: { hook: '', short: '', long: '', hashtags: [], cta: '' },
+          Hinglish: { hook: '', short: '', long: '', hashtags: [], cta: '' },
         },
       }));
     }
@@ -161,11 +144,11 @@ export function CaptionStudioPage() {
         message: `Regenerated compliant ${activeLang} (${captionLength}) copy.`,
         type: 'success',
       });
-    } catch {
+    } catch (err: unknown) {
       toast({
-        title: 'Synthesis fallback',
-        message: `Updated ${activeLang} (${captionLength}) copy.`,
-        type: 'info',
+        title: 'Copy not generated',
+        message: err instanceof Error ? err.message : 'AI copywriting failed. Please try again.',
+        type: 'error',
       });
     }
   };
@@ -392,7 +375,7 @@ export function CaptionStudioPage() {
             <CardHeader className="border-b border-[#E5E5E5] pb-3">
               <CardTitle className="text-[14px] font-semibold text-[#0A0A0A] flex items-center space-x-2">
                 <Share2 className="w-4 h-4 text-[#0A0A0A]" />
-                <span>Simulated feed post</span>
+                <span>Feed preview</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
