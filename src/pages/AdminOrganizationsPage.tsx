@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '../lib/zodResolver';
@@ -14,6 +15,7 @@ import {
   ShieldCheck,
   User,
   Filter,
+  Clapperboard,
 } from 'lucide-react';
 import axios from 'axios';
 import { api } from '../lib/api';
@@ -215,6 +217,12 @@ export function AdminOrganizationsPage() {
         title="Platform admin console"
         description="Supervise agency tenant organizations, client onboarding lifecycles, and invitation tokens."
         actions={
+          <div className="flex items-center gap-2">
+          <Link to="/admin/video-lab">
+            <Button variant="secondary" size="sm" leftIcon={<Clapperboard className="w-4 h-4" />}>
+              Video Lab
+            </Button>
+          </Link>
           <Button
             variant="primary"
             size="sm"
@@ -227,6 +235,7 @@ export function AdminOrganizationsPage() {
           >
             Add organization
           </Button>
+          </div>
         }
       />
 

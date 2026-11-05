@@ -14,6 +14,7 @@ import {
   LogIn,
   Settings,
   Shield,
+  Clapperboard,
   Bell,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
@@ -341,6 +342,16 @@ export function AppShell() {
               >
                 <Shield className="w-4 h-4 text-neutral-400" />
                 <span>Admin Console</span>
+              </Link>
+            )}
+            {(user?.isPlatformAdmin || user?.role === 'platform_admin') && (
+              <Link
+                to="/admin/video-lab"
+                onClick={() => setIsProfileMenuOpen(false)}
+                className="flex items-center space-x-2.5 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 hover:text-black rounded-xl transition-colors"
+              >
+                <Clapperboard className="w-4 h-4 text-neutral-400" />
+                <span>Video Lab</span>
               </Link>
             )}
           </div>

@@ -61,6 +61,13 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Show the backend's explanation (e.g. "AI is unavailable: billing not enabled") instead of
+    // axios's generic "Request failed with status code 503"
+    const backendMessage = (error.response.data as { error?: { message?: string } } | undefined)?.error?.message;
+    if (backendMessage) {
+      error.message = backendMessage;
+    }
+
     const status = error.response.status;
     const url = originalRequest.url || '';
 

@@ -18,6 +18,9 @@ const AcceptInvitePage = lazy(() =>
 const OnboardingPage = lazy(() =>
   import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage }))
 );
+const AdminVideoLabPage = lazy(() =>
+  import('./pages/AdminVideoLabPage').then((m) => ({ default: m.AdminVideoLabPage }))
+);
 const AdminOrganizationsPage = lazy(() =>
   import('./pages/AdminOrganizationsPage').then((m) => ({ default: m.AdminOrganizationsPage }))
 );
@@ -180,6 +183,7 @@ export default function App() {
                 }
               >
                 <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
+                <Route path="/admin/video-lab" element={<AdminVideoLabPage />} />
                 <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
               </Route>
 
