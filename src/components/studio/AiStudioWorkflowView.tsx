@@ -19,6 +19,7 @@ import {
   AiStudioImage,
   AiStudioReel,
   ReelVariationStyle,
+  PropertyVisionAnalysis,
 } from '../../hooks/useAiStudio';
 import { useProjectMedia } from '../../hooks/useMedia';
 import { formatDisplayDate } from '../../lib/formatters';
@@ -77,6 +78,8 @@ export function AiStudioWorkflowView({
 
   const handleProjectChange = (newId: string) => {
     setProjectId(newId);
+    setSelectedBatchId(null);
+    setLocalVision(null);
     if (onSelectProject) onSelectProject(newId);
   };
 
@@ -104,6 +107,14 @@ export function AiStudioWorkflowView({
 
   const currentBatch = batchDetail || activeBatch;
 
+  // Resolve vision analysis: from active batch, any previous batch for this project, or local mutation state
+  const [localVision, setLocalVision] = useState<PropertyVisionAnalysis | null>(null);
+  const anyBatchVision = useMemo(() => {
+    const found = batches.find((b) => b.visionAnalysis && (b.visionAnalysis.analysisSummary || b.visionAnalysis.architecturalStyle));
+    return found?.visionAnalysis || null;
+  }, [batches]);
+  const currentVision = currentBatch?.visionAnalysis || anyBatchVision || localVision;
+
   // Client uploaded media for the selected project
   const { approvedMedia: clientPhotos = [], isLoading: isLoadingMedia } = useProjectMedia(
     projectId,
@@ -129,6 +140,7 @@ export function AiStudioWorkflowView({
   // Generation Controls State
   const [targetImageCount, setTargetImageCount] = useState<number>(15);
   const [selectedStylePreset, setSelectedStylePreset] = useState<'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI'>('HERITAGE_LUXURY');
+  const [generationMode, setGenerationMode] = useState<'ENHANCED_CROPS' | 'AI_IMAGE'>('ENHANCED_CROPS');
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [generationStepText, setGenerationStepText] = useState('');
 
@@ -257,7 +269,10 @@ export function AiStudioWorkflowView({
     }
     try {
       toast({ title: 'AI Vision Analysis', message: 'Analyzing client property photos...', type: 'info' });
-      await analyzeMutation.mutateAsync({ projectId });
+      const res = await analyzeMutation.mutateAsync({ projectId });
+      if (res) {
+        setLocalVision(res);
+      }
       toast({
         title: 'Analysis Complete',
         message: 'Property architecture, color palette, and room layouts identified.',
@@ -297,6 +312,7 @@ export function AiStudioWorkflowView({
         projectId,
         targetCount: targetImageCount,
         stylePreset: selectedStylePreset,
+        mode: generationMode,
       });
 
       clearTimeout(t1);
@@ -569,9 +585,10 @@ export function AiStudioWorkflowView({
             >
               {projects.map((p) => {
                 const id = p._id || p.id || '';
+                const extra = (p as any).city || (p as any).location || (p as any).category || (id ? id.slice(-4) : '');
                 return (
                   <option key={id} value={id}>
-                    {p.name}
+                    {p.name}{extra ? ` (${extra})` : ''}
                   </option>
                 );
               })}
@@ -592,9 +609,9 @@ export function AiStudioWorkflowView({
             {
               stepNum: '2',
               title: 'AI Vision Analysis',
-              desc: currentBatch?.visionAnalysis ? 'Identified' : 'Pending',
-              done: Boolean(currentBatch?.visionAnalysis),
-              active: Boolean(currentBatch?.visionAnalysis),
+              desc: currentVision ? 'Identified' : 'Pending',
+              done: Boolean(currentVision),
+              active: Boolean(currentVision),
             },
             {
               stepNum: '3',
@@ -821,13 +838,13 @@ export function AiStudioWorkflowView({
                 </Button>
               </div>
 
-              {currentBatch?.visionAnalysis ? (
+              {currentVision ? (
                 <div className="space-y-3.5">
                   {/* Analysis Summary Box */}
                   <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-200">
                     <p className="text-xs text-neutral-800 leading-relaxed font-normal">
                       <span className="font-semibold text-neutral-900 mr-1.5">Vision Summary:</span>
-                      {currentBatch.visionAnalysis.analysisSummary}
+                      {currentVision.analysisSummary}
                     </p>
                   </div>
 
@@ -839,10 +856,10 @@ export function AiStudioWorkflowView({
                         <span>Type &amp; Architecture</span>
                       </div>
                       <div className="font-semibold text-neutral-900">
-                        {currentBatch.visionAnalysis.propertyType}
+                        {currentVision.propertyType}
                       </div>
                       <div className="text-text-secondary text-[11px]">
-                        Style: {currentBatch.visionAnalysis.architecturalStyle}
+                        Style: {currentVision.architecturalStyle}
                       </div>
                     </div>
 
@@ -852,10 +869,10 @@ export function AiStudioWorkflowView({
                         <span>Lighting &amp; Palette</span>
                       </div>
                       <div className="font-semibold text-neutral-900">
-                        {currentBatch.visionAnalysis.lightingProfile}
+                        {currentVision.lightingProfile}
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
-                        {currentBatch.visionAnalysis.dominantColors.map((color, idx) => (
+                        {currentVision.dominantColors.map((color: string, idx: number) => (
                           <div
                             key={idx}
                             className="w-4 h-4 rounded-full border border-neutral-300 shadow-2xs"
@@ -873,7 +890,7 @@ export function AiStudioWorkflowView({
                       Detected Spaces &amp; Unique Features:
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {currentBatch.visionAnalysis.detectedSpaces.map((space, i) => (
+                      {currentVision.detectedSpaces.map((space: string, i: number) => (
                         <span
                           key={`s-${i}`}
                           className="px-2 py-0.5 rounded-full text-[11px] bg-neutral-100 text-neutral-800 border border-neutral-200 font-medium"
@@ -881,7 +898,7 @@ export function AiStudioWorkflowView({
                           {space}
                         </span>
                       ))}
-                      {currentBatch.visionAnalysis.uniqueFeatures.map((feat, i) => (
+                      {currentVision.uniqueFeatures.map((feat: string, i: number) => (
                         <span
                           key={`f-${i}`}
                           className="px-2 py-0.5 rounded-full text-[11px] bg-amber-50 text-amber-900 border border-amber-300 font-medium"
@@ -893,16 +910,16 @@ export function AiStudioWorkflowView({
                   </div>
 
                   {/* Individual Uploaded Photo Understanding Breakdown */}
-                  {currentBatch.visionAnalysis.analyzedPhotos && currentBatch.visionAnalysis.analyzedPhotos.length > 0 && (
+                  {currentVision.analyzedPhotos && currentVision.analyzedPhotos.length > 0 && (
                     <div className="pt-2 border-t border-neutral-200 space-y-2">
                       <div className="text-[10px] font-bold text-text-secondary uppercase tracking-wider flex items-center justify-between">
-                        <span>Analyzed Property Photos ({currentBatch.visionAnalysis.analyzedPhotos.length}):</span>
+                        <span>Analyzed Property Photos ({currentVision.analyzedPhotos.length}):</span>
                         <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.2 rounded border border-emerald-200">
                           Individually Categorized
                         </span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
-                        {currentBatch.visionAnalysis.analyzedPhotos.map((p, idx) => (
+                        {currentVision.analyzedPhotos.map((p: any, idx: number) => (
                           <div
                             key={idx}
                             className="p-2 rounded-lg bg-white border border-neutral-200 flex items-center gap-2.5 shadow-2xs hover:border-neutral-400 transition-colors"
@@ -952,9 +969,9 @@ export function AiStudioWorkflowView({
                 <ShieldCheck className="w-3.5 h-3.5 text-neutral-700" />
                 Guaranteed: Real Property Identity Preserved
               </span>
-              {currentBatch?.visionAnalysis?.analyzedAt && (
+              {currentVision?.analyzedAt && (
                 <span className="text-[10px] text-text-muted">
-                  Analyzed {formatDisplayDate(currentBatch.visionAnalysis.analyzedAt)}
+                  Analyzed {formatDisplayDate(currentVision.analyzedAt)}
                 </span>
               )}
             </div>
@@ -1011,7 +1028,20 @@ export function AiStudioWorkflowView({
               </select>
             </div>
 
-            {/* Primary Action Button: Generate Fresh Collection */}
+            {/* Generation Mode: Enhanced Crops vs AI Image */}
+            <div className="flex items-center gap-1.5 bg-neutral-900 px-3 py-1.5 rounded-lg border border-neutral-700 h-9">
+              <span className="text-xs text-neutral-400 font-medium">Mode:</span>
+              <select
+                value={generationMode}
+                onChange={(e) => setGenerationMode(e.target.value as any)}
+                className="bg-transparent text-white font-semibold text-xs focus:outline-none cursor-pointer"
+              >
+                <option value="ENHANCED_CROPS" className="text-neutral-900">Enhanced crops (no AI generation)</option>
+                <option value="AI_IMAGE" className="text-neutral-900">AI image generation (Gemini)</option>
+              </select>
+            </div>
+
+            {/* Primary Action Button */}
             <button
               type="button"
               onClick={handleGenerateFreshImages}
@@ -1026,7 +1056,11 @@ export function AiStudioWorkflowView({
               ) : (
                 <>
                   <Sparkles className="w-3.5 h-3.5 text-neutral-900" />
-                  <span>{currentBatch ? 'Generate Fresh Collection' : 'Generate 15 AI Images'}</span>
+                  <span>
+                    {generationMode === 'ENHANCED_CROPS'
+                      ? (currentBatch ? 'Generate Enhanced Collection' : `Generate ${targetImageCount} Enhanced Photos`)
+                      : (currentBatch ? 'Generate Fresh Collection' : `Generate ${targetImageCount} AI Images`)}
+                  </span>
                 </>
               )}
             </button>
@@ -1136,13 +1170,74 @@ export function AiStudioWorkflowView({
           </div>
         </div>
 
-        {/* Gallery Grid of 10-15 Images */}
+        {/* Real-time Status Notice for In-Progress Generations */}
+        {currentBatch && (currentBatch.status === 'GENERATING' || currentBatch.status === 'ANALYZING' || currentBatch.status === 'QUEUED') && (
+          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-3 text-xs shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <RefreshCw className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+              <span className="font-semibold text-amber-950">
+                Generation in Progress ({currentBatch.progress || 0}%):
+              </span>
+              <span className="text-amber-800">{currentBatch.currentStep || 'Synthesizing perspectives...'}</span>
+            </div>
+            <span className="text-[10px] uppercase font-bold text-amber-700 tracking-wider bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
+              Live
+            </span>
+          </div>
+        )}
+
+        {/* Gallery Grid of 10-15 Images / Error Alert / Empty State */}
         {isLoadingBatches || isLoadingDetail ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
             {Array.from({ length: 10 }).map((_, i) => (
               <Skeleton key={i} className="aspect-[4/5] rounded-xl" />
             ))}
           </div>
+        ) : currentBatch?.status === 'FAILED' ? (
+          <Card className="p-6 border-rose-300 bg-rose-50/80 rounded-xl space-y-4">
+            <div className="flex items-start gap-3">
+              <XCircle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-rose-950">
+                    Generation Failed (Version {currentBatch.version})
+                  </h4>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-200/80 text-rose-900 border border-rose-300">
+                    Failed
+                  </span>
+                </div>
+                <p className="text-xs text-rose-800 leading-relaxed font-medium">
+                  {currentBatch.errorMessage || 'AI image generation encountered an error. Please try again.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-rose-200">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setGenerationMode('ENHANCED_CROPS');
+                  handleGenerateFreshImages();
+                }}
+                leftIcon={<Sparkles className="w-3.5 h-3.5 text-white" />}
+                className="h-8 text-xs font-semibold bg-rose-700 hover:bg-rose-800 text-white"
+              >
+                Try with Enhanced Crops (No AI / Works with Free Tier)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleGenerateFreshImages}
+                leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                className="h-8 text-xs font-semibold bg-white text-rose-900 border-rose-300 hover:bg-rose-100"
+              >
+                Retry
+              </Button>
+            </div>
+          </Card>
         ) : imagesList.length === 0 ? (
           <Card className="p-10 text-center border-dashed border-2 border-neutral-300 bg-neutral-50/50 rounded-xl">
             <Camera className="w-9 h-9 text-neutral-400 mx-auto mb-2" />
@@ -1229,11 +1324,14 @@ export function AiStudioWorkflowView({
                 {/* Bottom Overlay: Metadata Badges */}
                 <div className="absolute inset-x-0 bottom-0 p-2.5 bg-gradient-to-t from-black/95 via-black/60 to-transparent text-white space-y-1">
                   <div className="text-xs font-bold truncate tracking-tight">{img.title}</div>
-                  <div className="flex items-center justify-between text-[10px] text-neutral-300">
-                    <span className="truncate max-w-[100px]">{img.category}</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                      <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                      <span>{img.structurePreservationScore || 98}% Structure</span>
+                  <div className="flex items-center justify-between text-[10px] text-neutral-300 gap-1">
+                    <span className="truncate max-w-[90px]">{img.category}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-semibold truncate ${
+                      img.generationMode === 'ENHANCED_CROPS'
+                        ? 'bg-blue-950/85 text-blue-300 border border-blue-500/40'
+                        : 'bg-amber-950/85 text-amber-300 border border-amber-500/40'
+                    }`}>
+                      {img.generationMode === 'ENHANCED_CROPS' ? 'Enhanced photo (not AI-generated)' : 'AI-generated / illustrative'}
                     </span>
                   </div>
 
@@ -1669,17 +1767,13 @@ export function AiStudioWorkflowView({
             <div>
               <div className="flex items-center gap-2.5">
                 <div className="text-sm font-bold tracking-tight">{lightboxImage.title}</div>
-                {lightboxImage.isDuplicateWarning ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/90 text-neutral-950 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 text-neutral-950" />
-                    <span>Similarity: {Math.round((lightboxImage.similarityScore || 0.88) * 100)}%</span>
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/90 text-white flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-white" />
-                    <span>Unique Perspective Verified</span>
-                  </span>
-                )}
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                  lightboxImage.generationMode === 'ENHANCED_CROPS'
+                    ? 'bg-blue-600/90 text-white border border-blue-400/50'
+                    : 'bg-amber-600/90 text-white border border-amber-400/50'
+                }`}>
+                  {lightboxImage.generationMode === 'ENHANCED_CROPS' ? 'Enhanced photo (not AI-generated)' : 'AI-generated / illustrative'}
+                </span>
               </div>
               <div className="text-xs text-neutral-400 mt-0.5">
                 {lightboxImage.category} · {lightboxImage.cameraAngle} · {lightboxImage.lightingStyle}

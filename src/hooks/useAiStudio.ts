@@ -37,6 +37,8 @@ export interface AiStudioImage {
   qualityScore?: number;
   provider?: string;
   savedToMediaId?: string;
+  generationMode?: 'AI_IMAGE' | 'ENHANCED_CROPS';
+  imageLabel?: string;
 }
 
 export type ReelVariationStyle = 'CINEMATIC_SHOWCASE' | 'LUXURY_PRESENTATION' | 'MODERN_PROMO_AD';
@@ -85,6 +87,7 @@ export interface AiStudioBatch {
   reels: AiStudioReel[];
   sourceMediaAssetIds: string[];
   errorMessage?: string;
+  generationMode?: 'AI_IMAGE' | 'ENHANCED_CROPS';
   createdAt: string;
   updatedAt: string;
 }
@@ -100,6 +103,16 @@ export function useAiStudioBatches(projectId: string | undefined) {
       return res.data.data;
     },
     enabled: Boolean(projectId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (
+        data &&
+        data.some((b) => b.status === 'GENERATING' || b.status === 'ANALYZING' || b.status === 'QUEUED')
+      ) {
+        return 1500;
+      }
+      return false;
+    },
   });
 }
 
@@ -138,6 +151,7 @@ export function useAnalyzeProperty() {
     },
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ['ai-studio-batches', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batch'] });
     },
   });
 }
@@ -149,14 +163,16 @@ export function useGenerateStudioImages() {
       projectId,
       targetCount = 15,
       stylePreset = 'HERITAGE_LUXURY',
+      mode = 'AI_IMAGE',
     }: {
       projectId: string;
       targetCount?: number;
       stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
+      mode?: 'AI_IMAGE' | 'ENHANCED_CROPS';
     }): Promise<AiStudioBatch> => {
       const res = await api.post<{ success: boolean; data: AiStudioBatch }>(
         `/ai/projects/${projectId}/studio-generate-images`,
-        { targetCount, stylePreset }
+        { targetCount, stylePreset, mode }
       );
       return res.data.data;
     },

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clapperboard, Download, Eye, Film, ImageIcon, Mic, Music, Scissors, Trash2, Upload, Wand2 } from 'lucide-react';
+import { Clapperboard, Download, Eye, Film, ImageIcon, Images, Mic, Music, Scissors, Sparkles, Trash2, Upload, User, Wand2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -37,6 +37,7 @@ interface Transcript {
   cues: CaptionCue[];
   spokenLanguage?: string;
   error?: string;
+  fromCache?: boolean;
 }
 
 interface TimeRange {
@@ -70,6 +71,14 @@ interface ClipAnalysis {
   silences: TimeRange[];
   ms: number;
   steps: Array<{ name: string; ms: number }>;
+  fromCache?: boolean;
+}
+
+interface GeminiUsageInfo {
+  date: string;
+  totalCount: number;
+  limit: number;
+  byModel: Record<string, number>;
 }
 
 /** "Understand clips" result for one clip */
@@ -85,15 +94,97 @@ interface RenderStep {
   command?: string;
 }
 
+interface RecipeOverlayItem {
+  start: number;
+  end: number;
+  source: {
+    kind: string;
+    key: string;
+    in?: number;
+    out?: number;
+  };
+  style?: string;
+  motion?: string;
+  label?: string;
+  reason?: string;
+  decidedBy?: 'ai' | 'rules';
+  origin?: 'this_clip' | 'library_video' | 'library_photo';
+  isIllustrative?: boolean;
+}
+
+interface QualityCheckItem {
+  name: string;
+  status: 'pass' | 'warn' | 'fail';
+  detail: string;
+}
+
+interface QualityCheckResult {
+  passed: boolean;
+  checks: QualityCheckItem[];
+  reviewReason?: string;
+}
+
+interface MemoryShot {
+  _id: string;
+  clipKey: string;
+  start: number;
+  end: number;
+  room: string;
+  features: string[];
+  quality: number;
+  issues: string[];
+  spokenText?: string;
+  thumbnailUrl?: string;
+  usedIn: Array<{ renderId: string; at: string }>;
+  createdAt: string;
+  itemId?: {
+    kind?: string;
+    summary?: string;
+    actualOrIllustrative?: string;
+  } | null;
+}
+
 interface LabRender {
   _id: string;
   batchId: string;
   status: 'QUEUED' | 'RENDERING' | 'DONE' | 'FAILED';
-  recipe: { variant: { index: number; label: string } } & Record<string, unknown>;
-  input: { facts: { projectName: string }; captions: { language: string } };
+  recipe: {
+    variant: { index: number; label: string };
+    captions?: {
+      language: string;
+      style: string;
+      source: string;
+      lines?: string[];
+    } | null;
+    overlays?: RecipeOverlayItem[];
+    hook?: {
+      text: string;
+      startSeconds: number;
+      endSeconds: number;
+    } | null;
+    zooms?: Array<{
+      start: number;
+      end: number;
+      from: number;
+      to: number;
+    }>;
+    cuts?: Array<{
+      key: string;
+      filename?: string;
+      start: number;
+      end?: number;
+      label?: string;
+    }>;
+  } & Record<string, unknown>;
+  input: {
+    facts: { projectName: string };
+    captions: { language: string };
+    editing?: string;
+  };
   outputUrl?: string;
   posterUrl?: string;
   durationSeconds?: number;
+  qualityCheck?: QualityCheckResult;
   renderMs?: number;
   steps: RenderStep[];
   error?: string;
@@ -138,18 +229,84 @@ const formatSize = (bytes: number) =>
 /** Cloudinary: ask the CDN to send the file as a download */
 const downloadUrl = (url: string) => url.replace('/upload/', '/upload/fl_attachment/');
 
-async function uploadAsset(file: File): Promise<LabAsset> {
+async function uploadAsset(file: File, folder: 'assets' | 'library' = 'assets'): Promise<LabAsset> {
   const form = new FormData();
   form.append('file', file);
-  const res = await api.post('/admin/video-lab/assets', form, {
+  const res = await api.post(`/admin/video-lab/assets?folder=${folder}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return res.data.data as LabAsset;
 }
 
+interface LibraryUploadItem {
+  asset: LabAsset;
+  isIllustrative: boolean;
+  analyzed?: boolean;
+}
+
+function getClipUploadWarnings(clip: {
+  width?: number;
+  height?: number;
+  hasAudio?: boolean;
+  durationSeconds?: number;
+}): string[] {
+  const warnings: string[] = [];
+  const minDim = clip.width && clip.height ? Math.min(clip.width, clip.height) : undefined;
+  if (minDim !== undefined && minDim < 720) {
+    warnings.push('Low quality. Looks like a WhatsApp-compressed file. Use the original from the phone.');
+  }
+  if (clip.width && clip.height && clip.width > clip.height) {
+    warnings.push('Horizontal. Vertical gives better results.');
+  }
+  if (clip.hasAudio === false) {
+    warnings.push("No sound. Captions from speech won't work.");
+  }
+  if (clip.durationSeconds && clip.durationSeconds > 180) {
+    warnings.push('Only the first 3 minutes are used.');
+  }
+  return warnings;
+}
+
+function summarizeClipIssues(shots?: Array<{ issues?: string[] }>): string | null {
+  if (!shots || !shots.length) return null;
+  const counts: Record<string, number> = {};
+  for (const s of shots) {
+    for (const issue of s.issues || []) {
+      counts[issue] = (counts[issue] || 0) + 1;
+    }
+  }
+  const parts: string[] = [];
+  if (counts['shaky']) parts.push(`shaky (${counts['shaky']})`);
+  if (counts['too_dark']) parts.push(`too dark (${counts['too_dark']})`);
+  if (counts['blurry']) parts.push(`blurry (${counts['blurry']})`);
+  for (const [k, v] of Object.entries(counts)) {
+    if (!['shaky', 'too_dark', 'blurry'].includes(k)) {
+      parts.push(`${k.replace('_', ' ')} (${v})`);
+    }
+  }
+  if (!parts.length) return null;
+  return `Issues: ${parts.join(', ')}`;
+}
+
+function isPlausibleReraNumber(rera: string): boolean {
+  const trimmed = rera.trim();
+  if (!trimmed) return true;
+  if (trimmed.length < 6) return false;
+  return /^[A-Za-z0-9\/-]+$/.test(trimmed) && /[A-Za-z]/.test(trimmed) && /[0-9]/.test(trimmed);
+}
+
 export function AdminVideoLabPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const usageQuery = useQuery<GeminiUsageInfo>({
+    queryKey: ['video-lab-usage'],
+    queryFn: async () => {
+      const res = await api.get('/admin/video-lab/usage');
+      return res.data.data;
+    },
+    refetchInterval: 30000,
+  });
 
   const [clips, setClips] = useState<LabAsset[]>([]);
   const [logo, setLogo] = useState<LabAsset | null>(null);
@@ -170,11 +327,25 @@ export function AdminVideoLabPage() {
   const [analyses, setAnalyses] = useState<Record<string, AnalysisState>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [variants, setVariants] = useState('3');
+  const [variantStyles, setVariantStyles] = useState<Record<number, string>>({
+    0: 'AUTO',
+    1: 'AUTO',
+    2: 'AUTO',
+  });
+  const [hookTextEnabled, setHookTextEnabled] = useState(true);
+  const [punchInZoomEnabled, setPunchInZoomEnabled] = useState(true);
+  const [stabilizeShakyEnabled, setStabilizeShakyEnabled] = useState(true);
+  const [matchColoursEnabled, setMatchColoursEnabled] = useState(true);
+  const [shootingGuideOpen, setShootingGuideOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const clipInput = useRef<HTMLInputElement>(null);
   const logoInput = useRef<HTMLInputElement>(null);
   const musicInput = useRef<HTMLInputElement>(null);
+  const libraryInput = useRef<HTMLInputElement>(null);
+
+  const [libraryItems, setLibraryItems] = useState<LibraryUploadItem[]>([]);
+  const [analyzingLibrary, setAnalyzingLibrary] = useState(false);
 
   const { data: renders = [] } = useQuery({
     queryKey: ['video-lab-renders'],
@@ -182,6 +353,27 @@ export function AdminVideoLabPage() {
     // Poll only while something is still rendering
     refetchInterval: (query) =>
       (query.state.data || []).some((r) => r.status === 'QUEUED' || r.status === 'RENDERING') ? 3000 : false,
+  });
+
+  const [memoryRoom, setMemoryRoom] = useState<string>('ALL');
+  const [memoryQuery, setMemoryQuery] = useState<string>('');
+
+  const { data: memoryStats } = useQuery<{ itemCount: number; shotCount: number }>({
+    queryKey: ['video-lab-memory-stats'],
+    queryFn: async () => (await api.get('/admin/video-lab/memory/stats')).data.data,
+    refetchInterval: 10000,
+  });
+
+  const { data: memoryShots = [], isLoading: loadingMemoryShots } = useQuery<MemoryShot[]>({
+    queryKey: ['video-lab-memory-shots', memoryRoom, memoryQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (memoryRoom && memoryRoom !== 'ALL') params.set('room', memoryRoom);
+      if (memoryQuery.trim()) params.set('q', memoryQuery.trim());
+      params.set('limit', '20');
+      const res = await api.get(`/admin/video-lab/memory/shots?${params.toString()}`);
+      return res.data.data as MemoryShot[];
+    },
   });
 
   const handleFiles = async (files: FileList | null, kind: 'clip' | 'logo' | 'music') => {
@@ -205,6 +397,68 @@ export function AdminVideoLabPage() {
     setUploading(null);
   };
 
+  const handleLibraryFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const list = Array.from(files);
+    for (const file of list) {
+      setUploading(file.name);
+      try {
+        const asset = await uploadAsset(file, 'library');
+        setLibraryItems((prev) => [...prev, { asset, isIllustrative: false }]);
+      } catch (err) {
+        toast({
+          title: `Upload failed: ${file.name}`,
+          message: err instanceof Error ? err.message : 'Could not upload library file',
+          type: 'error',
+        });
+      }
+    }
+    setUploading(null);
+  };
+
+  const analyzeLibraryItems = async () => {
+    if (!libraryItems.length || analyzingLibrary) return;
+    setAnalyzingLibrary(true);
+    try {
+      const photos = libraryItems.filter((i) => i.asset.kind === 'image');
+      const videos = libraryItems.filter((i) => i.asset.kind === 'video');
+
+      if (photos.length > 0) {
+        await api.post('/admin/video-lab/library/analyze-photos', {
+          photos: photos.map((p) => ({
+            key: p.asset.key,
+            filename: p.asset.filename,
+            isIllustrative: p.isIllustrative,
+            consentOk: true,
+          })),
+        });
+      }
+
+      for (const v of videos) {
+        await api.post('/admin/video-lab/analyze', { clipKey: v.asset.key });
+      }
+
+      setLibraryItems((prev) => prev.map((item) => ({ ...item, analyzed: true })));
+      queryClient.invalidateQueries({ queryKey: ['video-lab-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['video-lab-memory-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['video-lab-memory-shots'] });
+
+      toast({
+        title: 'Library analyzed',
+        message: `${libraryItems.length} asset(s) saved to Content Memory for B-roll cutaways.`,
+        type: 'success',
+      });
+    } catch (err) {
+      toast({
+        title: 'Analysis failed',
+        message: err instanceof Error ? err.message : 'Could not analyze library assets',
+        type: 'error',
+      });
+    } finally {
+      setAnalyzingLibrary(false);
+    }
+  };
+
   const captionLines = captionText
     .split('\n')
     .map((l) => l.trim())
@@ -224,15 +478,16 @@ export function AdminVideoLabPage() {
       if (!force && result[key]?.status === 'done') continue;
       setTranscripts((prev) => ({ ...prev, [key]: { status: 'loading', cues: [] } }));
       try {
-        const res = await api.post('/admin/video-lab/transcribe', { clipKey: clip.key, language });
-        const data = res.data.data as { cues: CaptionCue[]; spokenLanguage?: string };
-        result[key] = { status: 'done', cues: data.cues, spokenLanguage: data.spokenLanguage };
+        const res = await api.post('/admin/video-lab/transcribe', { clipKey: clip.key, language, force });
+        const data = res.data.data as { cues: CaptionCue[]; spokenLanguage?: string; fromCache?: boolean };
+        result[key] = { status: 'done', cues: data.cues, spokenLanguage: data.spokenLanguage, fromCache: data.fromCache };
       } catch (err) {
         result[key] = { status: 'error', cues: [], error: err instanceof Error ? err.message : 'Could not get captions' };
       }
       setTranscripts((prev) => ({ ...prev, [key]: result[key] }));
     }
     setTranscribing(false);
+    queryClient.invalidateQueries({ queryKey: ['video-lab-usage'] });
     return result;
   };
 
@@ -244,7 +499,7 @@ export function AdminVideoLabPage() {
       if (!force && result[clip.key]?.status === 'done') continue;
       setAnalyses((prev) => ({ ...prev, [clip.key]: { status: 'loading' } }));
       try {
-        const res = await api.post('/admin/video-lab/analyze', { clipKey: clip.key });
+        const res = await api.post('/admin/video-lab/analyze', { clipKey: clip.key, force });
         result[clip.key] = { status: 'done', data: res.data.data as ClipAnalysis };
       } catch (err) {
         result[clip.key] = { status: 'error', error: err instanceof Error ? err.message : 'Could not understand the clip' };
@@ -252,6 +507,9 @@ export function AdminVideoLabPage() {
       setAnalyses((prev) => ({ ...prev, [clip.key]: result[clip.key] }));
     }
     setAnalyzing(false);
+    queryClient.invalidateQueries({ queryKey: ['video-lab-usage'] });
+    queryClient.invalidateQueries({ queryKey: ['video-lab-memory-shots'] });
+    queryClient.invalidateQueries({ queryKey: ['video-lab-memory-stats'] });
     return result;
   };
 
@@ -327,10 +585,20 @@ export function AdminVideoLabPage() {
         captions: { language, source: captionSource, lines: captionSource === 'typed' ? captionLines : [] },
         editing,
         ...(editing === 'smart' ? { targetSeconds: Number(targetSeconds) } : {}),
-        variants: Number(variants),
+        creatorStyle: {
+          hookText: hookTextEnabled,
+          punchInZoom: punchInZoomEnabled,
+        },
+        stabilizeShaky: stabilizeShakyEnabled,
+        matchColours: matchColoursEnabled,
+        variants: Array.from({ length: Number(variants) || 1 }, (_, i) => {
+          const style = variantStyles[i];
+          return style && style !== 'AUTO' ? { captionStyle: style } : {};
+        }),
       });
       toast({ title: 'Generating', message: res.data.meta?.message || 'Videos queued', type: 'success' });
       await queryClient.invalidateQueries({ queryKey: ['video-lab-renders'] });
+      await queryClient.invalidateQueries({ queryKey: ['video-lab-usage'] });
     } catch (err) {
       toast({
         title: 'Could not start generation',
@@ -347,6 +615,19 @@ export function AdminVideoLabPage() {
       <PageHeader
         title="Video Lab"
         description="Test the video editing pipeline: upload raw clips, type the details, and generate different reels. No organization or project needed."
+        badges={
+          usageQuery.data ? (
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                usageQuery.data.totalCount >= usageQuery.data.limit
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}
+            >
+              Gemini today: {usageQuery.data.totalCount} / {usageQuery.data.limit}
+            </span>
+          ) : null
+        }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -356,6 +637,27 @@ export function AdminVideoLabPage() {
             <CardTitle className="text-[15px] font-semibold">1. Upload files</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
+            {/* Collapsible Shooting Guide */}
+            <div className="border border-amber-200 bg-amber-50/60 rounded-[8px] overflow-hidden text-[12px]">
+              <button
+                type="button"
+                onClick={() => setShootingGuideOpen(!shootingGuideOpen)}
+                className="w-full flex items-center justify-between px-3 py-2 text-amber-950 font-medium hover:bg-amber-100/50 cursor-pointer text-left"
+              >
+                <span>💡 Shooting guide: how to get the best reels</span>
+                <span className="text-[11px] text-amber-800">{shootingGuideOpen ? 'Hide' : 'Show tips'}</span>
+              </button>
+              {shootingGuideOpen && (
+                <div className="px-3 pb-2.5 pt-1 text-amber-900 border-t border-amber-200/60 space-y-1 text-[11px]">
+                  <p>• <strong>Shoot vertical (9:16):</strong> Hold your phone upright for clean vertical output without black bars.</p>
+                  <p>• <strong>Original file from phone:</strong> Avoid sending files over WhatsApp (which compresses and lowers short-side resolution below 720px).</p>
+                  <p>• <strong>Shoot in daylight:</strong> Bright, natural daylight produces crisp, luxury architectural clarity.</p>
+                  <p>• <strong>~5 seconds per room:</strong> Pan slowly and keep movement steady so stabilization works smoothly.</p>
+                  <p>• <strong>Say room names out loud:</strong> Saying &quot;living room&quot;, &quot;modular kitchen&quot;, or &quot;balcony&quot; helps the AI place B-roll cutaways exactly where spoken.</p>
+                </div>
+              )}
+            </div>
+
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-medium text-[#0A0A0A]">Raw clips (1–5) *</span>
@@ -382,25 +684,35 @@ export function AdminVideoLabPage() {
                 />
               </div>
               <ul className="mt-2 space-y-1.5">
-                {clips.map((c, i) => (
-                  <li key={c.key} className="flex items-center justify-between text-[12px] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[8px] px-3 py-2">
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Film className="w-3.5 h-3.5 text-[#737373] shrink-0" />
-                      <span className="truncate">
-                        {i + 1}. {c.filename}
-                      </span>
-                      <span className="text-[#737373] shrink-0">
-                        {c.durationSeconds ? `${c.durationSeconds}s · ` : ''}
-                        {c.width && c.height ? `${c.width}×${c.height} · ` : ''}
-                        {c.hasAudio === false ? 'no sound · ' : ''}
-                        {formatSize(c.sizeBytes)}
-                      </span>
-                    </span>
-                    <button type="button" aria-label="Remove clip" onClick={() => setClips((p) => p.filter((x) => x.key !== c.key))}>
-                      <Trash2 className="w-3.5 h-3.5 text-[#737373] hover:text-[#B91C1C]" />
-                    </button>
-                  </li>
-                ))}
+                {clips.map((c, i) => {
+                  const warnings = getClipUploadWarnings(c);
+                  return (
+                    <li key={c.key} className="text-[12px] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[8px] px-3 py-2 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-2 min-w-0">
+                          <Film className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                          <span className="truncate font-medium">
+                            {i + 1}. {c.filename}
+                          </span>
+                          <span className="text-[#737373] shrink-0">
+                            {c.durationSeconds ? `${c.durationSeconds}s · ` : ''}
+                            {c.width && c.height ? `${c.width}×${c.height} · ` : ''}
+                            {c.hasAudio === false ? 'no sound · ' : ''}
+                            {formatSize(c.sizeBytes)}
+                          </span>
+                        </span>
+                        <button type="button" aria-label="Remove clip" onClick={() => setClips((p) => p.filter((x) => x.key !== c.key))}>
+                          <Trash2 className="w-3.5 h-3.5 text-[#737373] hover:text-[#B91C1C]" />
+                        </button>
+                      </div>
+                      {warnings.map((w, wi) => (
+                        <div key={wi} className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/60 rounded px-2 py-0.5 font-medium">
+                          ⚠ {w}
+                        </div>
+                      ))}
+                    </li>
+                  );
+                })}
                 {clips.length === 0 && <li className="text-[12px] text-[#737373]">No clips yet. MP4, MOV or WebM.</li>}
               </ul>
             </div>
@@ -425,6 +737,110 @@ export function AdminVideoLabPage() {
             />
             <input ref={musicInput} type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav" className="hidden" onChange={(e) => { handleFiles(e.target.files, 'music'); e.target.value = ''; }} />
 
+            {/* Library B-roll (photos & past clips) */}
+            <div className="border-t border-[#E5E5E5] pt-3 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <span className="text-[13px] font-medium text-[#0A0A0A] flex items-center gap-1.5">
+                    <Images className="w-3.5 h-3.5 text-[#737373]" />
+                    Library B-roll (photos &amp; past clips, optional)
+                  </span>
+                  <p className="text-[11px] text-[#737373]">
+                    Upload property photos (PNG/JPG/WebP) or past clips to use as cutaways when dialogue mentions a room.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  {libraryItems.some((i) => !i.analyzed) && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      leftIcon={<Wand2 className="w-3.5 h-3.5" />}
+                      disabled={analyzingLibrary}
+                      onClick={analyzeLibraryItems}
+                    >
+                      {analyzingLibrary ? 'Analyzing…' : 'Analyze & Save'}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    leftIcon={<Upload className="w-3.5 h-3.5" />}
+                    disabled={Boolean(uploading)}
+                    onClick={() => libraryInput.current?.click()}
+                  >
+                    Add library files
+                  </Button>
+                </div>
+                <input
+                  ref={libraryInput}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    handleLibraryFiles(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
+              {libraryItems.length > 0 && (
+                <ul className="space-y-1.5 pt-1">
+                  {libraryItems.map((item, idx) => (
+                    <li
+                      key={item.asset.key}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[12px] bg-[#FAFAFA] border border-[#E5E5E5] rounded-[8px] px-3 py-2"
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        {item.asset.kind === 'image' ? (
+                          <ImageIcon className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                        ) : (
+                          <Film className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+                        )}
+                        <span className="truncate font-medium">{item.asset.filename}</span>
+                        <span className="text-[#737373] shrink-0">
+                          {item.asset.kind === 'image' ? 'photo · ' : `${item.asset.durationSeconds || ''}s video · `}
+                          {formatSize(item.asset.sizeBytes)}
+                        </span>
+                        {item.analyzed && (
+                          <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Saved in Memory
+                          </span>
+                        )}
+                      </span>
+
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-[#525252] select-none">
+                          <input
+                            type="checkbox"
+                            checked={item.isIllustrative}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setLibraryItems((prev) =>
+                                prev.map((it, i) => (i === idx ? { ...it, isIllustrative: checked, analyzed: false } : it))
+                              );
+                            }}
+                            className="rounded border-[#D4D4D4] text-[#0A0A0A] focus:ring-0 w-3.5 h-3.5"
+                          />
+                          <span>Illustrative (render, not real photo)</span>
+                        </label>
+
+                        <button
+                          type="button"
+                          aria-label="Remove library item"
+                          onClick={() => setLibraryItems((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[#737373] hover:text-[#B91C1C]" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {uploading && <p className="text-[12px] text-[#525252]">Uploading {uploading}…</p>}
           </CardContent>
         </Card>
@@ -439,7 +855,14 @@ export function AdminVideoLabPage() {
               <Input label="Org name *" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="e.g. Skyline Developers" />
               <Input label="Project name *" value={projectName} onChange={(e) => setProjectName(e.target.value)} placeholder="e.g. Skyline Heights" />
               <Input label="Phone / WhatsApp (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Shown on the end card only if filled" />
-              <Input label="RERA number (optional)" value={rera} onChange={(e) => setRera(e.target.value)} placeholder="Shown on the end card only if filled" />
+              <div>
+                <Input label="RERA number (optional)" value={rera} onChange={(e) => setRera(e.target.value)} placeholder="Shown on the end card only if filled" />
+                {rera.trim() && !isPlausibleReraNumber(rera) && (
+                  <p className="text-[11px] text-amber-700 mt-1 font-medium">
+                    Hint: That doesn&apos;t look like a standard RERA registration number (e.g. PRM/KA/RERA/... or P518000...). It will still be shown as entered.
+                  </p>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Select label="Caption language" value={language} onChange={(e) => setLanguage(e.target.value)} options={LANGUAGES} />
@@ -494,6 +917,83 @@ export function AdminVideoLabPage() {
                 Generate
               </Button>
             </div>
+
+            {/* Caption preset picker per variant */}
+            <div className="border border-[#E5E5E5] rounded-[8px] p-3 space-y-2 bg-[#FAFAFA]">
+              <div className="text-[12px] font-medium text-[#0A0A0A]">
+                Caption style presets per variant
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {Array.from({ length: Number(variants) || 1 }, (_, i) => {
+                  const letter = String.fromCharCode(65 + i);
+                  const defaultStyle = i === 0 ? 'POP' : i === 1 ? 'KARAOKE' : 'SLIDE';
+                  return (
+                    <Select
+                      key={letter}
+                      label={`Variant ${letter} caption style`}
+                      value={variantStyles[i] || 'AUTO'}
+                      onChange={(e) =>
+                        setVariantStyles((prev) => ({ ...prev, [i]: e.target.value }))
+                      }
+                      options={[
+                        { value: 'AUTO', label: `Auto (default: ${defaultStyle})` },
+                        { value: 'POP', label: 'POP' },
+                        { value: 'KARAOKE', label: 'KARAOKE' },
+                        { value: 'SLIDE', label: 'SLIDE' },
+                        { value: 'MINIMAL', label: 'MINIMAL' },
+                      ]}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Creator-style editing toggles (R4 & R3) */}
+            <div className="border border-[#E5E5E5] rounded-[8px] p-3 space-y-2 bg-[#FAFAFA]">
+              <div className="text-[12px] font-medium text-[#0A0A0A] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-primary-600" />
+                <span>Creator-style editing &amp; footage enhancement (R3/R4)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-[12px]">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={hookTextEnabled}
+                    onChange={(e) => setHookTextEnabled(e.target.checked)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Text hook (large animated title in first 2.5s)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={punchInZoomEnabled}
+                    onChange={(e) => setPunchInZoomEnabled(e.target.checked)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Punch-in zoom (presenter zoom on longer stretches)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={stabilizeShakyEnabled}
+                    onChange={(e) => setStabilizeShakyEnabled(e.target.checked)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Stabilize shaky clips (smoothing 10 via libvidstab)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-[#374151]">
+                  <input
+                    type="checkbox"
+                    checked={matchColoursEnabled}
+                    onChange={(e) => setMatchColoursEnabled(e.target.checked)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>Match colours between clips (brightness normalization)</span>
+                </label>
+              </div>
+            </div>
+
             <p className="text-[12px] text-[#737373]">
               Variants change only the presentation; facts stay the same. Smart cut: A = property-tour order, B = best shot
               first, C = fast cuts. Each also has its own caption style, end-card design and music level.
@@ -541,10 +1041,20 @@ export function AdminVideoLabPage() {
                   leftIcon={<Eye className="w-4 h-4" />}
                   disabled={!clips.length || analyzing}
                   isLoading={analyzing}
-                  onClick={() => analyzeClips(true)}
+                  onClick={() => analyzeClips(false)}
                 >
                   Understand clips
                 </Button>
+                {clips.some((c) => analyses[c.key]?.status === 'done') && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!clips.length || analyzing}
+                    onClick={() => analyzeClips(true)}
+                  >
+                    Re-analyze
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -585,6 +1095,128 @@ export function AdminVideoLabPage() {
           ))}
         </div>
       </div>
+
+      {/* 5. Content memory (Knowledge card & shot retrieval) */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-[15px] font-semibold flex items-center gap-2">
+                <Film className="w-4 h-4 text-neutral-700" /> Content memory (past shots &amp; clips)
+              </CardTitle>
+              <p className="text-[12px] text-[#525252] mt-0.5">
+                Every analyzed shot is indexed once and remembered. Search across past footage without re-uploading or re-analyzing.
+              </p>
+            </div>
+            {memoryStats && (
+              <div className="flex items-center gap-2 text-[11px] text-[#737373] bg-neutral-100 px-2.5 py-1 rounded-[6px] self-start sm:self-auto">
+                <span className="font-semibold text-neutral-800">{memoryStats.shotCount}</span> shots indexed across{' '}
+                <span className="font-semibold text-neutral-800">{memoryStats.itemCount}</span> items
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="sm:w-60">
+              <Select
+                label="Room / Category"
+                value={memoryRoom}
+                onChange={(e) => setMemoryRoom(e.target.value)}
+                options={[
+                  { value: 'ALL', label: 'All rooms & categories' },
+                  { value: 'KITCHEN', label: 'Kitchen' },
+                  { value: 'LIVING', label: 'Living Room' },
+                  { value: 'BEDROOM', label: 'Bedroom' },
+                  { value: 'BATHROOM', label: 'Bathroom' },
+                  { value: 'BALCONY_VIEW', label: 'Balcony / View' },
+                  { value: 'AERIAL', label: 'Aerial / Drone' },
+                  { value: 'EXTERIOR', label: 'Exterior / Facade' },
+                  { value: 'ENTRANCE', label: 'Entrance / Lobby' },
+                  { value: 'AMENITY', label: 'Amenity / Pool / Gym' },
+                  { value: 'LOCATION', label: 'Location / Landmark' },
+                  { value: 'PRESENTER', label: 'Presenter / Talking head' },
+                  { value: 'OTHER', label: 'Other' },
+                ]}
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                label="Search keywords"
+                placeholder="e.g. modular kitchen, pool view, marble floor…"
+                value={memoryQuery}
+                onChange={(e) => setMemoryQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {loadingMemoryShots ? (
+            <p className="text-[12px] text-[#737373]">Loading content memory…</p>
+          ) : memoryShots.length === 0 ? (
+            <div className="border border-dashed border-[#E5E5E5] rounded-[8px] p-6 text-center text-[12px] text-[#737373]">
+              No saved shots found matching the filters. Understand clips or render reels to populate content memory.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {memoryShots.map((shot) => (
+                <div
+                  key={shot._id}
+                  className="border border-[#E5E5E5] rounded-[8px] overflow-hidden bg-white flex flex-col text-[11px]"
+                >
+                  <div className="aspect-video bg-neutral-900 relative flex items-center justify-center overflow-hidden">
+                    {shot.thumbnailUrl ? (
+                      <img
+                        src={shot.thumbnailUrl}
+                        alt={shot.room}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Film className="w-6 h-6 text-neutral-600" />
+                    )}
+                    <span className="absolute bottom-1 right-1 bg-black/75 text-white text-[9px] px-1 py-0.5 rounded font-mono">
+                      {shot.start.toFixed(1)}s–{shot.end.toFixed(1)}s
+                    </span>
+                    <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] px-1 py-0.5 rounded font-medium">
+                      {shot.room}
+                    </span>
+                    {(shot.itemId as any)?.analysisSource === 'heuristic' && (
+                      <span className="absolute top-1 right-1 bg-amber-600/90 text-white text-[9px] px-1.5 py-0.5 rounded font-medium">
+                        unverified
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-2 space-y-1.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-neutral-700">Quality: {shot.quality}/5</span>
+                        <span
+                          className={`px-1 py-0.5 rounded text-[9px] font-medium ${
+                            shot.usedIn?.length
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {shot.usedIn?.length ? `Used ${shot.usedIn.length}x` : 'Unused'}
+                        </span>
+                      </div>
+                      {shot.features?.length > 0 && (
+                        <p className="text-[#525252] truncate mt-1" title={shot.features.join(', ')}>
+                          {shot.features.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                    {shot.itemId?.actualOrIllustrative && (
+                      <span className="text-[9px] text-[#737373]">
+                        {shot.itemId.actualOrIllustrative === 'ILLUSTRATIVE' ? 'Illustrative' : 'Actual'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -599,20 +1231,32 @@ function ClipShots(props: { index: number; clip: LabAsset; state?: AnalysisState
         <span className="font-medium text-[#0A0A0A] truncate">
           {index + 1}. {clip.filename}
         </span>
-        <span className="text-[#737373] shrink-0">
-          {!state
-            ? 'Not understood yet'
-            : state.status === 'loading'
-              ? 'Watching…'
-              : state.status === 'error'
-                ? 'Failed'
-                : `${data!.shots.length} shots · ${kept.length} kept · ${(data!.ms / 1000).toFixed(1)}s`}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {data?.fromCache && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]">
+              from cache
+            </span>
+          )}
+          <span className="text-[#737373]">
+            {!state
+              ? 'Not understood yet'
+              : state.status === 'loading'
+                ? 'Watching…'
+                : state.status === 'error'
+                  ? 'Failed'
+                  : `${data!.shots.length} shots · ${kept.length} kept · ${(data!.ms / 1000).toFixed(1)}s`}
+          </span>
+        </div>
       </div>
       {state?.status === 'error' && <p className="mt-1 text-[#B91C1C]">{state.error}</p>}
       {data && (
         <>
           {data.summary && <p className="mt-1 text-[#525252]">{data.summary}</p>}
+          {summarizeClipIssues(data.shots) && (
+            <p className="mt-1 text-[11px] text-amber-800 font-medium">
+              ⚠ {summarizeClipIssues(data.shots)}
+            </p>
+          )}
           {data.analyzedSeconds < data.durationSeconds && (
             <p className="mt-1 text-[#92400E]">Only the first {Math.round(data.analyzedSeconds)} s of this clip are used.</p>
           )}
@@ -700,19 +1344,26 @@ function SpeechCaptions(props: {
               <span className="truncate">
                 {i + 1}. {clip.filename}
               </span>
-              <span className="text-[#737373] font-normal shrink-0">
-                {clip.hasAudio === false
-                  ? 'No sound: no captions'
-                  : !t
-                    ? 'Not listened yet'
-                    : t.status === 'loading'
-                      ? 'Listening…'
-                      : t.status === 'error'
-                        ? 'Failed'
-                        : t.cues.length
-                          ? `${t.cues.length} captions${t.spokenLanguage ? ` · spoken: ${t.spokenLanguage}` : ''}`
-                          : 'No speech found'}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {t?.fromCache && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]">
+                    from cache
+                  </span>
+                )}
+                <span className="text-[#737373] font-normal">
+                  {clip.hasAudio === false
+                    ? 'No sound: no captions'
+                    : !t
+                      ? 'Not listened yet'
+                      : t.status === 'loading'
+                        ? 'Listening…'
+                        : t.status === 'error'
+                          ? 'Failed'
+                          : t.cues.length
+                            ? `${t.cues.length} captions${t.spokenLanguage ? ` · spoken: ${t.spokenLanguage}` : ''}`
+                            : 'No speech found'}
+                </span>
+              </div>
             </div>
             {t?.status === 'error' && <p className="mt-1 text-[#B91C1C]">{t.error}</p>}
             {t?.status === 'done' && t.cues.length > 0 && (
@@ -773,6 +1424,9 @@ function FileRow(props: {
 function RenderCard({ render }: { render: LabRender }) {
   const badge = STATUS_BADGE[render.status];
   const totalStepMs = render.steps.reduce((sum, s) => sum + s.ms, 0);
+  const warnCount = render.qualityCheck?.checks.filter((c) => c.status === 'warn').length ?? 0;
+  const hasFailed =
+    render.qualityCheck && (!render.qualityCheck.passed || render.qualityCheck.checks.some((c) => c.status === 'fail'));
   return (
     <Card className="flex flex-col">
       <CardContent className="p-4 space-y-3 flex-1 flex flex-col">
@@ -781,7 +1435,27 @@ function RenderCard({ render }: { render: LabRender }) {
             <p className="text-[13px] font-semibold text-[#0A0A0A] truncate">{render.input.facts.projectName}</p>
             <p className="text-[12px] text-[#525252]">{render.recipe.variant.label}</p>
           </div>
-          <StatusBadge status={badge.status} label={badge.label} />
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <StatusBadge status={badge.status} label={badge.label} />
+            {render.qualityCheck && (
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                  hasFailed
+                    ? 'bg-red-50 text-red-700 border-red-300'
+                    : warnCount > 0
+                      ? 'bg-amber-50 text-amber-700 border-amber-300'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                }`}
+              >
+                {hasFailed ? 'Needs review' : warnCount > 0 ? `Check: ${warnCount} ${warnCount === 1 ? 'warning' : 'warnings'}` : 'Quality OK'}
+              </span>
+            )}
+            {render.recipe.captions?.style && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                {render.recipe.captions.style} captions
+              </span>
+            )}
+          </div>
         </div>
 
         {render.status === 'DONE' && render.outputUrl ? (
@@ -814,35 +1488,286 @@ function RenderCard({ render }: { render: LabRender }) {
           )}
         </div>
 
+        {/* B-roll timeline preview in render card */}
+        <BrollTimeline render={render} />
+
+        {render.qualityCheck && (
+          <details className="text-[12px] border border-[#E5E5E5] rounded-[6px] p-2 bg-[#FAFAFA]">
+            <summary className="cursor-pointer font-medium text-[#0A0A0A] flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    hasFailed ? 'bg-red-500' : warnCount > 0 ? 'bg-amber-500' : 'bg-emerald-500'
+                  }`}
+                />
+                <span>Quality checks ({render.qualityCheck.checks.length})</span>
+              </span>
+              <span className="text-[11px] text-[#737373]">
+                {hasFailed ? 'Needs review' : warnCount > 0 ? `${warnCount} warning${warnCount === 1 ? '' : 's'}` : 'All passed'}
+              </span>
+            </summary>
+            <div className="mt-2 space-y-1.5">
+              {render.qualityCheck.reviewReason && (
+                <div className="p-1.5 rounded bg-red-50 text-red-700 border border-red-200 text-[11px] font-medium">
+                  {render.qualityCheck.reviewReason}
+                </div>
+              )}
+              {render.qualityCheck.checks.map((chk, i) => (
+                <div key={i} className="flex items-start justify-between gap-2 text-[11px] bg-white p-1.5 rounded border border-[#E5E5E5]">
+                  <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        chk.status === 'fail' ? 'bg-red-500' : chk.status === 'warn' ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
+                    />
+                    <span className="font-medium text-[#0A0A0A]">{chk.name}</span>
+                  </div>
+                  <span className="text-[#525252] text-right break-words">{chk.detail}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
         <details className="text-[12px]">
           <summary className="cursor-pointer font-medium text-[#0A0A0A]">How this video was made</summary>
-          <ol className="mt-2 space-y-1.5">
-            {render.steps.map((s, i) => (
-              <li key={i} className="border border-[#E5E5E5] rounded-[6px] p-2">
-                <div className="flex justify-between gap-2">
-                  <span>
-                    {i + 1}. {s.name}
-                  </span>
-                  <span className="text-[#737373] shrink-0">{(s.ms / 1000).toFixed(1)}s</span>
-                </div>
-                {s.command && (
-                  <details className="mt-1">
-                    <summary className="cursor-pointer text-[#737373]">ffmpeg command</summary>
-                    <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] bg-[#FAFAFA] p-2 rounded">{s.command}</pre>
-                  </details>
-                )}
-              </li>
-            ))}
-          </ol>
-          {totalStepMs > 0 && <p className="mt-2 text-[#737373]">Total processing: {(totalStepMs / 1000).toFixed(1)}s</p>}
-          <details className="mt-2">
-            <summary className="cursor-pointer text-[#737373]">Edit recipe (JSON)</summary>
-            <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] bg-[#FAFAFA] p-2 rounded">
-              {JSON.stringify(render.recipe, null, 2)}
-            </pre>
-          </details>
+          <div className="mt-2 space-y-3">
+            <BrollTimeline render={render} />
+
+            <ol className="space-y-1.5">
+              {render.steps.map((s, i) => (
+                <li key={i} className="border border-[#E5E5E5] rounded-[6px] p-2">
+                  <div className="flex justify-between gap-2">
+                    <span>
+                      {i + 1}. {s.name}
+                    </span>
+                    <span className="text-[#737373] shrink-0">{(s.ms / 1000).toFixed(1)}s</span>
+                  </div>
+                  {s.command && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-[#737373]">ffmpeg command</summary>
+                      <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] bg-[#FAFAFA] p-2 rounded">{s.command}</pre>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {totalStepMs > 0 && <p className="mt-2 text-[#737373]">Total processing: {(totalStepMs / 1000).toFixed(1)}s</p>}
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[#737373]">Edit recipe (JSON)</summary>
+              <pre className="mt-1 whitespace-pre-wrap break-all text-[10px] bg-[#FAFAFA] p-2 rounded">
+                {JSON.stringify(render.recipe, null, 2)}
+              </pre>
+            </details>
+          </div>
         </details>
       </CardContent>
     </Card>
+  );
+}
+
+function BrollTimeline({ render }: { render: LabRender }) {
+  const overlays = render.recipe?.overlays || [];
+  const hook = render.recipe?.hook;
+  const zooms = render.recipe?.zooms || [];
+  const duration =
+    render.durationSeconds ||
+    (render.recipe?.cuts?.reduce((sum, c) => sum + ((c.end ?? 10) - c.start), 0) ?? 0) ||
+    30;
+
+  if (!overlays.length && !hook && !zooms.length) {
+    return (
+      <div className="border border-[#E5E5E5] rounded-[8px] p-2.5 bg-[#FAFAFA] text-[12px] space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="font-medium text-[#525252] flex items-center gap-1.5">
+            <Film className="w-3.5 h-3.5 text-[#737373]" />
+            Timeline Preview
+          </span>
+          <span className="text-[11px] text-[#737373]">Continuous Presenter</span>
+        </div>
+        <p className="text-[#737373] text-[11px]">
+          Presenter continuous A-roll narration (no B-roll overlays or creator effects).
+        </p>
+      </div>
+    );
+  }
+
+  type TimelineSlice =
+    | { type: 'presenter'; start: number; end: number }
+    | { type: 'broll'; start: number; end: number; overlay: RecipeOverlayItem };
+
+  const slices: TimelineSlice[] = [];
+  let cur = 0;
+  const sortedOverlays = [...overlays].sort((a, b) => a.start - b.start);
+
+  for (const ov of sortedOverlays) {
+    if (ov.start > cur + 0.05) {
+      slices.push({ type: 'presenter', start: cur, end: ov.start });
+    }
+    slices.push({ type: 'broll', start: ov.start, end: ov.end, overlay: ov });
+    cur = Math.max(cur, ov.end);
+  }
+
+  if (cur < duration - 0.05) {
+    slices.push({ type: 'presenter', start: cur, end: duration });
+  }
+
+  return (
+    <div className="border border-[#E5E5E5] rounded-[8px] p-2.5 bg-[#FAFAFA] text-[12px] space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-[#0A0A0A] flex items-center gap-1.5">
+          <Film className="w-3.5 h-3.5 text-[#525252]" />
+          <span>Timeline Preview ({overlays.length} overlay{overlays.length === 1 ? '' : 's'}{hook ? ' · text hook' : ''}{zooms.length ? ` · ${zooms.length} zoom(s)` : ''})</span>
+        </span>
+        <span className="text-[11px] text-[#737373]">{duration.toFixed(1)}s total</span>
+      </div>
+
+      {/* Horizontal timeline bar */}
+      <div className="w-full h-7 flex rounded-[6px] overflow-hidden border border-[#D4D4D4] bg-[#E5E5E5] text-[10px]">
+        {slices.map((slice, i) => {
+          const sliceDur = Math.max(0.1, slice.end - slice.start);
+          const widthPct = Math.max(2, (sliceDur / duration) * 100);
+
+          if (slice.type === 'presenter') {
+            return (
+              <div
+                key={i}
+                style={{ width: `${widthPct}%` }}
+                title={`Presenter: ${slice.start.toFixed(1)}s - ${slice.end.toFixed(1)}s`}
+                className="bg-[#E0E7FF] text-[#3730A3] border-r border-[#C7D2FE] flex items-center justify-center px-1 overflow-hidden truncate font-medium select-none"
+              >
+                <User className="w-3 h-3 mr-0.5 shrink-0" />
+                <span className="truncate">Presenter</span>
+              </div>
+            );
+          }
+
+          const isAi = slice.overlay.decidedBy === 'ai';
+          const isPhoto = slice.overlay.source?.kind === 'photo';
+          const isIllustrative = slice.overlay.isIllustrative;
+          return (
+            <div
+              key={i}
+              style={{ width: `${widthPct}%` }}
+              title={`B-Roll (${isAi ? 'AI Director' : 'Keyword Rules'} · ${slice.overlay.origin || 'this_clip'}${isIllustrative ? ' · Illustrative' : ''}): ${slice.overlay.label || 'B-roll'} (${slice.start.toFixed(1)}s - ${slice.end.toFixed(1)}s)`}
+              className={`${
+                isAi
+                  ? 'bg-[#F3E8FF] text-[#6B21A8] border-r border-[#E9D5FF]'
+                  : 'bg-[#FEF3C7] text-[#92400E] border-r border-[#FDE68A]'
+              } flex items-center justify-center px-1 overflow-hidden truncate font-semibold select-none`}
+            >
+              {isAi && <Sparkles className="w-3 h-3 mr-0.5 shrink-0" />}
+              {isPhoto && <ImageIcon className="w-3 h-3 mr-0.5 shrink-0" />}
+              <span className="truncate">
+                {slice.overlay.label || 'B-roll'}
+                {isIllustrative ? ' [Illustrative]' : ''}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Creator style markers (Hook & Punch-in Zooms) */}
+      {(hook || zooms.length > 0) && (
+        <div className="relative w-full h-5 rounded-[4px] bg-[#F3F4F6] border border-[#E5E7EB] overflow-hidden text-[9px]">
+          {hook && (
+            <div
+              style={{
+                left: `${(hook.startSeconds / duration) * 100}%`,
+                width: `${Math.max(4, ((hook.endSeconds - hook.startSeconds) / duration) * 100)}%`,
+              }}
+              title={`Text Hook (0.2s - 2.4s): "${hook.text}"`}
+              className="absolute top-0 bottom-0 bg-[#FEF08A] text-[#854D0E] border-r border-[#FACC15] font-bold flex items-center justify-center px-1 truncate select-none shadow-xs"
+            >
+              <span className="truncate">Hook: {hook.text}</span>
+            </div>
+          )}
+          {zooms.map((z, zi) => (
+            <div
+              key={zi}
+              style={{
+                left: `${(z.start / duration) * 100}%`,
+                width: `${Math.max(4, ((z.end - z.start) / duration) * 100)}%`,
+              }}
+              title={`Punch-in Zoom: ${z.from.toFixed(2)}x -> ${z.to.toFixed(2)}x (${z.start.toFixed(1)}s - ${z.end.toFixed(1)}s)`}
+              className="absolute top-0 bottom-0 bg-[#BBF7D0] text-[#166534] border-r border-[#86EFAC] font-semibold flex items-center justify-center px-1 truncate select-none shadow-xs"
+            >
+              <span className="truncate">Zoom {z.from.toFixed(2)}x→{z.to.toFixed(2)}x</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Creator items details */}
+      {(hook || zooms.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
+          {hook && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-amber-50 text-amber-900 border border-amber-200">
+              <span className="font-semibold">Text hook:</span> "{hook.text}" ({hook.startSeconds}s–{hook.endSeconds}s)
+            </span>
+          )}
+          {zooms.map((z, zi) => (
+            <span
+              key={zi}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-emerald-50 text-emerald-900 border border-emerald-200"
+            >
+              <span className="font-semibold">Zoom {zi + 1}:</span> {z.from.toFixed(2)}x → {z.to.toFixed(2)}x ({z.start.toFixed(1)}s–{z.end.toFixed(1)}s)
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Overlay details */}
+      <div className="space-y-1.5 pt-0.5">
+        {overlays.map((ov, oi) => {
+          const isAi = ov.decidedBy === 'ai';
+          const srcName = ov.source?.key ? ov.source.key.split('/').pop() : 'Clip';
+          const origin = ov.origin || (ov.source?.kind === 'photo' ? 'library_photo' : 'this_clip');
+          const originLabel =
+            origin === 'library_photo' ? 'library photo' : origin === 'library_video' ? 'library video' : 'this clip';
+
+          return (
+            <div
+              key={oi}
+              className="bg-white border border-[#E5E5E5] rounded-[6px] p-2 flex flex-col sm:flex-row sm:items-start justify-between gap-1.5 text-[11px]"
+            >
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-semibold text-[#0A0A0A]">{ov.label || 'B-roll'}</span>
+                  <span className="text-[#737373] tabular-nums">
+                    {ov.start.toFixed(1)}s – {ov.end.toFixed(1)}s ({(ov.end - ov.start).toFixed(1)}s)
+                  </span>
+                  <span className="text-[#A3A3A3]">·</span>
+                  <span className="text-[#525252] truncate" title={ov.source?.key}>
+                    src: {srcName}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                    {originLabel}
+                  </span>
+                  {ov.isIllustrative && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                      Artist's impression
+                    </span>
+                  )}
+                </div>
+                {ov.reason && <p className="text-[#525252]">{ov.reason}</p>}
+              </div>
+
+              <div className="shrink-0 flex items-center gap-1.5 self-start sm:self-center">
+                {isAi ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                    <Sparkles className="w-2.5 h-2.5" /> AI Director
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                    Keyword Rules
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
