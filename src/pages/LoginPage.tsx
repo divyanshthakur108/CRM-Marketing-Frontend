@@ -54,7 +54,8 @@ export function LoginPage() {
     } else if (authUser.onboardingStatus && authUser.onboardingStatus !== 'completed') {
       navigate('/onboarding', { replace: true });
     } else {
-      navigate(from || '/dashboard', { replace: true });
+      const destination = (!from || from === '/') ? '/dashboard' : from;
+      navigate(destination, { replace: true });
     }
   };
 

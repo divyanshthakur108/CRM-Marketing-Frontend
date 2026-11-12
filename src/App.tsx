@@ -96,6 +96,9 @@ const NotificationsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
+const LandingPage = lazy(() =>
+  import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
@@ -149,8 +152,9 @@ export default function App() {
         <BrowserRouter>
           <Suspense fallback={<PageFallback />}>
             <Routes>
-              {/* Dynamic root route redirect based on session role & onboarding status */}
-              <Route path="/" element={<RootRedirect />} />
+              {/* Public SaaS Landing Page */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/app" element={<RootRedirect />} />
 
               {/* Public Auth Routes */}
               <Route element={<AuthLayout />}>

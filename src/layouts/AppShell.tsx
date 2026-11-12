@@ -34,7 +34,7 @@ const navItems: NavItem[] = [
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-    isActive: (p) => p === '/dashboard' || p === '/',
+    isActive: (p) => p === '/dashboard',
   },
   {
     name: 'Calendar',
