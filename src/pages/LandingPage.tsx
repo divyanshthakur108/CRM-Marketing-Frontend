@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { api } from '../lib/api';
 import { AnnouncementBar } from '../components/landing/AnnouncementBar';
 import { Navbar } from '../components/landing/Navbar';
 import { Hero } from '../components/landing/Hero';
@@ -17,12 +19,15 @@ import { X, CheckCircle2, Building2, Phone, Mail, User, Sparkles } from 'lucide-
 export function LandingPage() {
   const [demoModalOpen, setDemoModalOpen] = useState(false);
   const [demoSubmitted, setDemoSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [demoForm, setDemoForm] = useState({
     name: '',
     email: '',
     phone: '',
     company: '',
-    teamSize: '10-25 brokers',
+    teamSize: '1-5 brokers',
+    hp_field: '',
   });
 
   useEffect(() => {
@@ -32,11 +37,34 @@ export function LandingPage() {
   const handleOpenDemo = () => {
     setDemoModalOpen(true);
     setDemoSubmitted(false);
+    setSubmitError(null);
   };
 
-  const handleSubmitDemo = (e: React.FormEvent) => {
+  const handleSubmitDemo = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDemoSubmitted(true);
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await api.post('/public/demo-request', demoForm);
+      setDemoSubmitted(true);
+    } catch (err: unknown) {
+      let errorMsg = 'Failed to submit demo request. Please check your information and try again.';
+      if (axios.isAxiosError(err)) {
+        if (err.response?.data?.error?.message) {
+          errorMsg = err.response.data.error.message;
+        } else if (err.response?.data?.message) {
+          errorMsg = err.response.data.message;
+        }
+      } else if (err instanceof Error) {
+        errorMsg = err.message;
+      }
+      setSubmitError(errorMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -197,12 +225,38 @@ export function LandingPage() {
                   </div>
                 </div>
 
+                {/* Honeypot field (hidden from human visitors) */}
+                <input
+                  type="text"
+                  name="hp_field"
+                  value={demoForm.hp_field}
+                  onChange={(e) => setDemoForm({ ...demoForm, hp_field: e.target.value })}
+                  style={{ display: 'none' }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                />
+
+                {submitError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs leading-relaxed">
+                    {submitError}
+                  </div>
+                )}
+
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#0A0A0A] hover:bg-neutral-800 transition-all shadow-md"
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#0A0A0A] hover:bg-neutral-800 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
                   >
-                    Confirm My Demo Booking
+                    {isSubmitting ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Confirming Your Demo...</span>
+                      </>
+                    ) : (
+                      'Confirm My Demo Booking'
+                    )}
                   </button>
                   <p className="text-[11px] text-neutral-400 text-center mt-2">
                     We respect your privacy. No spam, ever.
@@ -216,7 +270,7 @@ export function LandingPage() {
                 </div>
                 <h3 className="text-2xl font-extrabold text-[#0A0A0A]">Demo Request Received!</h3>
                 <p className="text-sm text-neutral-600 max-w-sm mx-auto">
-                  Thank you, <strong>{demoForm.name}</strong>. Our real estate solutions consultant will reach out via WhatsApp at <strong>{demoForm.phone}</strong> within 15 minutes.
+                  Thank you, <strong>{demoForm.name}</strong>. Our real estate solutions consultant will contact you at <strong>{demoForm.phone}</strong> and <strong>{demoForm.email}</strong> regarding your personalized VIP demo.
                 </p>
                 <button
                   type="button"

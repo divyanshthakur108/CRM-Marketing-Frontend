@@ -1,9 +1,5 @@
-import { useState, useId, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { StatusBadge } from '../components/ui/StatusBadge';
-import { PageHeader } from '../components/ui/PageHeader';
+import { useState, useId, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useToast } from '../components/ui/Toast';
 import { formatCurrency } from '../lib/formatters';
@@ -16,10 +12,21 @@ import {
   Wallet,
   AlertTriangle,
   Save,
-  CheckCircle2,
-  Building,
+  Building2,
   RotateCcw,
+  PieChart,
+  Target,
+  Info,
 } from 'lucide-react';
+
+const MONTH_OPTIONS = [
+  'October 2026',
+  'November 2026',
+  'December 2026',
+  'January 2027',
+  'February 2027',
+  'March 2027',
+];
 
 export function BudgetPage() {
   const { toast } = useToast();
@@ -29,41 +36,64 @@ export function BudgetPage() {
   const [selectedMonth, setSelectedMonth] = useState('November 2026');
   const [overallCap, setOverallCap] = useState<number>(500000);
   const [allocations, setAllocations] = useState<FrontendProjectAllocation[]>([]);
+  const [isEditingCap, setIsEditingCap] = useState(false);
 
-  // Real React Query hook
-  const { data: budgetData, isLoading, refetch } = useBudget(selectedMonth);
+  // TanStack Query Hooks
+  const { data: budgetData, isLoading, refetch, isFetching } = useBudget(selectedMonth);
   const updateBudgetMutation = useUpdateBudget();
 
   // Synchronize state when backend data arrives
   useEffect(() => {
     if (budgetData) {
-      setOverallCap(budgetData.overallCap);
-      setAllocations(budgetData.allocations);
+      setOverallCap(budgetData.overallCap ?? 500000);
+      setAllocations(Array.isArray(budgetData.allocations) ? budgetData.allocations : []);
     }
   }, [budgetData]);
 
-  // Computed values
-  const totalAllocated = allocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
+  // Financial Calculations
+  const totalAllocated = useMemo(() => {
+    return allocations.reduce((sum, a) => sum + (Number(a.allocatedAmount) || 0), 0);
+  }, [allocations]);
+
   const remainingAmount = overallCap - totalAllocated;
   const isExceeded = totalAllocated > overallCap;
   const percentUsed =
-    overallCap > 0 ? Math.min(100, Math.round((totalAllocated / overallCap) * 100)) : 0;
+    overallCap > 0 ? Math.round((totalAllocated / overallCap) * 100) : 0;
+  const isNearLimit = percentUsed >= 85 && !isExceeded;
 
+  // Channel aggregations
+  const channelTotals = useMemo(() => {
+    return allocations.reduce(
+      (acc, a) => {
+        acc.meta += Number(a.metaAds) || 0;
+        acc.google += Number(a.googleAds) || 0;
+        acc.linkedin += Number(a.linkedinAds) || 0;
+        acc.whatsapp += Number(a.directWhatsapp) || 0;
+        return acc;
+      },
+      { meta: 0, google: 0, linkedin: 0, whatsapp: 0 }
+    );
+  }, [allocations]);
+
+  // Two-way allocation update handler
   const handleUpdateAllocation = (
     projectId: string,
     field: keyof FrontendProjectAllocation,
     value: number
   ) => {
+    const cleanValue = Math.max(0, Math.round(Number(value) || 0));
+
     setAllocations((prev) =>
       prev.map((item) => {
         if (item.projectId !== projectId) return item;
-        const updated = { ...item, [field]: value };
+        const updated = { ...item, [field]: cleanValue };
 
         if (field === 'allocatedAmount') {
-          const metaShare = Math.round(value * 0.5);
-          const googleShare = Math.round(value * 0.35);
-          const linkedinShare = Math.round(value * 0.1);
-          const directShare = value - (metaShare + googleShare + linkedinShare);
+          // Auto-distribute by channel proportions: 50% Meta, 35% Google, 10% LinkedIn, remainder WhatsApp
+          const metaShare = Math.round(cleanValue * 0.5);
+          const googleShare = Math.round(cleanValue * 0.35);
+          const linkedinShare = Math.round(cleanValue * 0.1);
+          const directShare = Math.max(0, cleanValue - (metaShare + googleShare + linkedinShare));
           return {
             ...updated,
             metaAds: metaShare,
@@ -73,22 +103,42 @@ export function BudgetPage() {
           };
         }
 
+        // When a single channel is updated, compute new total sum
         const newTotal =
-          (field === 'metaAds' ? value : item.metaAds) +
-          (field === 'googleAds' ? value : item.googleAds) +
-          (field === 'linkedinAds' ? value : item.linkedinAds) +
-          (field === 'directWhatsapp' ? value : item.directWhatsapp);
+          (field === 'metaAds' ? cleanValue : item.metaAds) +
+          (field === 'googleAds' ? cleanValue : item.googleAds) +
+          (field === 'linkedinAds' ? cleanValue : item.linkedinAds) +
+          (field === 'directWhatsapp' ? cleanValue : item.directWhatsapp);
 
         return { ...updated, allocatedAmount: newTotal };
       })
     );
   };
 
+  // Quick increment helper (+₹10k, +₹50k)
+  const handleQuickAdd = (projectId: string, increment: number) => {
+    const project = allocations.find((a) => a.projectId === projectId);
+    if (!project) return;
+    const current = project.allocatedAmount || 0;
+    handleUpdateAllocation(projectId, 'allocatedAmount', current + increment);
+  };
+
+  // Reset to server values
+  const handleReset = async () => {
+    await refetch();
+    toast({
+      title: 'Budget Reloaded',
+      message: 'Restored latest saved values from the server.',
+      type: 'info',
+    });
+  };
+
+  // Save budget mutation
   const handleSaveBudget = async () => {
     if (isExceeded) {
       toast({
-        title: 'Validation error',
-        message: 'Cannot save: Total allocations exceed the overall monthly budget cap.',
+        title: 'Validation Error',
+        message: 'Cannot save: Total allocations exceed the monthly budget ceiling.',
         type: 'error',
       });
       return;
@@ -101,229 +151,506 @@ export function BudgetPage() {
         allocations,
       });
       toast({
-        title: 'Budget saved',
-        message: `Allocations persisted for ${selectedMonth}.`,
+        title: 'Budget Saved Successfully',
+        message: `Allocations for ${selectedMonth} have been persisted.`,
         type: 'success',
       });
     } catch (err: unknown) {
       toast({
-        title: 'Save failed',
-        message: err instanceof Error ? err.message : 'Could not save budget',
+        title: 'Save Failed',
+        message: err instanceof Error ? err.message : 'Could not persist budget changes.',
         type: 'error',
       });
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <PageHeader
-        title="Marketing budget & allocation"
-        description="Allocate monthly ad spend caps across projects and performance marketing channels."
-        actions={
-          <div className="flex items-center space-x-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => refetch()}
-              leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+    <div className="space-y-6 pb-12">
+      {/* 1. Header & Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <nav aria-label="Breadcrumbs" className="flex items-center gap-1.5 text-xs text-[#64748B] mb-1">
+            <Link to="/dashboard" className="hover:text-[#10B981] transition-colors">
+              Dashboard
+            </Link>
+            <span className="text-slate-300">/</span>
+            <span>Finance</span>
+            <span className="text-slate-300">/</span>
+            <span className="font-semibold text-[#1F2937]">Budget Management</span>
+          </nav>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-[#1F2937]">
+              Budget Management
+            </h1>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                isExceeded
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : 'bg-[#E8F7F1] text-[#10B981] border-[#10B981]/20'
+              }`}
             >
-              Reset
-            </Button>
-
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleSaveBudget}
-              disabled={isExceeded || updateBudgetMutation.isPending}
-              isLoading={updateBudgetMutation.isPending}
-              leftIcon={<Save className="w-3.5 h-3.5" />}
-            >
-              Save budget
-            </Button>
+              {isExceeded ? 'Deficit Alert' : 'Cap Compliant'}
+            </span>
           </div>
-        }
-      />
-
-      {/* Validation Alert when Budget Exceeded */}
-      {isExceeded && (
-        <div className="border border-[#FEE2E2] bg-[#FEF2F2] rounded-[10px] p-4 text-[#B91C1C]">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="w-5 h-5 text-[#B91C1C] shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <div className="flex items-center space-x-2">
-                <span className="text-[14px] font-semibold text-[#B91C1C]">
-                  Budget ceiling exceeded &bull; Saving is blocked
-                </span>
-                <StatusBadge status="FAILED" label="Validation error" />
-              </div>
-              <p className="text-[13px] text-[#B91C1C]">
-                Total allocations of <strong>{formatCurrency(totalAllocated)}</strong> exceed the monthly cap of{' '}
-                <strong>{formatCurrency(overallCap)}</strong> by{' '}
-                <strong>{formatCurrency(Math.abs(remainingAmount))}</strong>.
-                You must reduce project allocations or increase the overall cap to save this configuration.
-              </p>
-            </div>
-          </div>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            Allocate monthly advertising spend caps across catalog projects and multichannel marketing funnels.
+          </p>
         </div>
-      )}
 
-      {/* Budget Summary Metrics Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Month Selector */}
-        <Card>
-          <CardContent className="p-5 space-y-1">
-            <label htmlFor={monthSelectId} className="text-[12px] font-medium text-[#737373] block">
-              Billing cycle month
-            </label>
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Month Selector Dropdown */}
+          <div className="relative">
             <select
               id={monthSelectId}
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full text-[14px] font-medium p-2 border border-[#E5E5E5] rounded-[8px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:ring-offset-2"
+              className="h-9 text-xs font-semibold px-3 py-1.5 rounded-xl border border-[#EDF0F2] bg-white text-[#1F2937] shadow-xs hover:border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#10B981] cursor-pointer"
             >
-              <option value="October 2026">October 2026</option>
-              <option value="November 2026">November 2026 (Current)</option>
-              <option value="December 2026">December 2026</option>
-              <option value="January 2027">January 2027</option>
+              {MONTH_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m} {m === 'November 2026' ? '(Current)' : ''}
+                </option>
+              ))}
             </select>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Overall Cap Input */}
-        <Card>
-          <CardContent className="p-5 space-y-1">
-            <span className="text-[12px] font-medium text-[#737373] block">
-              Monthly budget cap
-            </span>
-            <div className="flex items-center space-x-1.5">
-              <span className="text-[14px] font-medium text-[#737373]">₹</span>
-              <input
-                type="number"
-                value={overallCap}
-                onChange={(e) => setOverallCap(Number(e.target.value) || 0)}
-                step="10000"
-                min="0"
-                className="w-full text-[20px] font-semibold text-[#0A0A0A] tabular-nums p-1 border border-[#E5E5E5] rounded-[8px] bg-white focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:ring-offset-2"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Total Allocated */}
-        <Card>
-          <CardContent className="p-5 space-y-1">
-            <span className="text-[12px] font-medium text-[#737373] block">
-              Total allocated
-            </span>
-            <div className="text-[24px] font-semibold text-[#0A0A0A] tabular-nums">
-              {formatCurrency(totalAllocated)}
-            </div>
-            <div className="text-[12px] text-[#737373]">
-              {percentUsed}% of total capacity used
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Remaining Amount */}
-        <Card className={isExceeded ? 'border-[#FEE2E2] bg-[#FEF2F2]' : ''}>
-          <CardContent className="p-5 space-y-1">
-            <span className="text-[12px] font-medium text-[#737373] block">
-              {isExceeded ? 'Budget deficit' : 'Remaining unallocated'}
-            </span>
-            <div
-              className={`text-[24px] font-semibold tabular-nums ${
-                isExceeded ? 'text-[#B91C1C]' : 'text-[#0A0A0A]'
+          {/* Reset / Reload Button */}
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={isLoading || isFetching}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#EDF0F2] bg-white text-xs font-semibold text-[#1F2937] hover:bg-slate-50 shadow-xs transition-all active:scale-[0.98] cursor-pointer"
+            title="Reload saved budget from server"
+          >
+            <RotateCcw
+              className={`w-3.5 h-3.5 text-[#10B981] ${
+                isLoading || isFetching ? 'animate-spin' : ''
               }`}
-            >
-              {isExceeded
-                ? `- ${formatCurrency(Math.abs(remainingAmount))}`
-                : formatCurrency(remainingAmount)}
-            </div>
-            <div className="flex items-center space-x-1 text-[12px]">
-              {isExceeded ? (
-                <span className="text-[#B91C1C] font-semibold">Over cap</span>
-              ) : (
-                <span className="text-[#15803D] flex items-center">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-[#15803D]" /> Within cap
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+            />
+            <span>Reset</span>
+          </button>
+
+          {/* Save Budget Mutation Button */}
+          <button
+            type="button"
+            onClick={handleSaveBudget}
+            disabled={isExceeded || updateBudgetMutation.isPending}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#10B981] text-white text-xs font-semibold hover:bg-[#059669] shadow-xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Persist budget allocations"
+          >
+            <Save className={`w-3.5 h-3.5 ${updateBudgetMutation.isPending ? 'animate-spin' : ''}`} />
+            <span>{updateBudgetMutation.isPending ? 'Saving...' : 'Save Budget'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Visual Capacity Meter */}
-      <Card>
-        <CardContent className="p-5 space-y-2">
-          <div className="flex items-center justify-between text-[13px]">
-            <span className="font-semibold text-[#0A0A0A]">Monthly budget utilization</span>
-            <span className="text-[#737373] tabular-nums">
-              {formatCurrency(totalAllocated)} / {formatCurrency(overallCap)} ({percentUsed}%)
+      {/* 2. Critical Overrun or Warning Banners */}
+      {isExceeded && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <p className="font-bold text-rose-900 text-sm">
+                Budget Ceiling Exceeded &bull; Saving is Blocked
+              </p>
+              <p className="text-rose-800/90 text-xs mt-0.5">
+                Total allocations of <strong className="font-bold">{formatCurrency(totalAllocated)}</strong> exceed the
+                monthly ceiling of <strong className="font-bold">{formatCurrency(overallCap)}</strong> by{' '}
+                <strong className="font-bold text-rose-900">{formatCurrency(Math.abs(remainingAmount))}</strong>. Reduce
+                project allocations or raise the monthly cap to save.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-200 text-rose-800 shrink-0 self-start sm:self-center">
+            Deficit: -{formatCurrency(Math.abs(remainingAmount))}
+          </span>
+        </div>
+      )}
+
+      {isNearLimit && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-xs flex items-center gap-3 text-xs">
+          <div className="h-9 w-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <Info className="w-5 h-5 stroke-[2.2]" />
+          </div>
+          <div>
+            <p className="font-bold text-amber-900 text-sm">Approaching Budget Ceiling</p>
+            <p className="text-amber-800/90 text-xs mt-0.5">
+              Allocations are at <strong className="font-bold">{percentUsed}%</strong> of total monthly capacity. Only{' '}
+              <strong className="font-bold">{formatCurrency(remainingAmount)}</strong> remains available for allocation.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Primary Financial KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Monthly Budget Cap */}
+        <div className="rounded-2xl bg-white border border-[#EDF0F2] p-5 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold tracking-wider uppercase text-[#64748B]">
+                Total Budget Ceiling
+              </p>
+              {isEditingCap ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-lg font-bold text-[#1F2937]">₹</span>
+                  <input
+                    type="number"
+                    value={overallCap}
+                    onChange={(e) => setOverallCap(Math.max(0, Number(e.target.value) || 0))}
+                    step="50000"
+                    min="0"
+                    onBlur={() => setIsEditingCap(false)}
+                    autoFocus
+                    className="w-32 text-xl font-bold text-[#1F2937] tabular-nums px-2 py-0.5 rounded-lg border border-[#10B981] focus:outline-none"
+                  />
+                </div>
+              ) : (
+                <div
+                  onClick={() => setIsEditingCap(true)}
+                  className="text-[26px] font-bold tracking-tight text-[#1F2937] tabular-nums leading-none mt-1.5 cursor-pointer hover:text-[#10B981] transition-colors flex items-center gap-1.5"
+                  title="Click to edit budget cap"
+                >
+                  {isLoading ? (
+                    <div className="h-7 w-28 bg-slate-100 rounded-md animate-pulse" />
+                  ) : (
+                    <>
+                      <span>{formatCurrency(overallCap)}</span>
+                      <span className="text-[11px] font-normal text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                        Edit
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-[#EDE9FE] text-[#8B5CF6] flex items-center justify-center shrink-0">
+              <Wallet className="w-5 h-5 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#EDF0F2] flex items-center justify-between text-xs text-[#64748B]">
+            <span>Monthly ceiling for {selectedMonth}</span>
+            <button
+              type="button"
+              onClick={() => setIsEditingCap((v) => !v)}
+              className="text-[#10B981] hover:underline font-semibold"
+            >
+              {isEditingCap ? 'Done' : 'Change'}
+            </button>
+          </div>
+        </div>
+
+        {/* KPI 2: Total Allocated Budget */}
+        <div className="rounded-2xl bg-white border border-[#EDF0F2] p-5 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold tracking-wider uppercase text-[#64748B]">
+                Allocated Spend
+              </p>
+              <div className="text-[26px] font-bold tracking-tight text-[#1F2937] tabular-nums leading-none mt-1.5">
+                {isLoading ? (
+                  <div className="h-7 w-24 bg-slate-100 rounded-md animate-pulse" />
+                ) : (
+                  formatCurrency(totalAllocated)
+                )}
+              </div>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-[#EFF6FF] text-[#3B82F6] flex items-center justify-center shrink-0">
+              <Building2 className="w-5 h-5 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#EDF0F2] flex items-center justify-between text-xs text-[#64748B]">
+            <span>Across {allocations.length} projects</span>
+            <span className="font-semibold text-[#1F2937] tabular-nums">{percentUsed}% utilized</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Remaining Unallocated / Deficit */}
+        <div
+          className={`rounded-2xl border p-5 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] flex flex-col justify-between ${
+            isExceeded ? 'bg-rose-50/40 border-rose-200' : 'bg-white border-[#EDF0F2]'
+          }`}
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p
+                className={`text-xs font-semibold tracking-wider uppercase ${
+                  isExceeded ? 'text-rose-700' : 'text-[#64748B]'
+                }`}
+              >
+                {isExceeded ? 'Budget Deficit' : 'Available Capacity'}
+              </p>
+              <div
+                className={`text-[26px] font-bold tracking-tight tabular-nums leading-none mt-1.5 ${
+                  isExceeded ? 'text-rose-700' : 'text-[#10B981]'
+                }`}
+              >
+                {isLoading ? (
+                  <div className="h-7 w-24 bg-slate-100 rounded-md animate-pulse" />
+                ) : isExceeded ? (
+                  `- ${formatCurrency(Math.abs(remainingAmount))}`
+                ) : (
+                  formatCurrency(remainingAmount)
+                )}
+              </div>
+            </div>
+            <div
+              className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isExceeded ? 'bg-rose-100 text-rose-700' : 'bg-[#E8F7F1] text-[#10B981]'
+              }`}
+            >
+              {isExceeded ? (
+                <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+              ) : (
+                <Target className="w-5 h-5 stroke-[2.2]" />
+              )}
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#EDF0F2] flex items-center justify-between text-xs text-[#64748B]">
+            <span>{isExceeded ? 'Over limit' : 'Ready for deployment'}</span>
+            <span
+              className={`font-semibold ${
+                isExceeded ? 'text-rose-700' : 'text-[#10B981]'
+              }`}
+            >
+              {isExceeded ? 'Action Required' : 'Within Budget'}
             </span>
           </div>
+        </div>
 
-          <div className="w-full h-3 bg-[#F5F5F5] rounded-full overflow-hidden relative">
-            <div
-              className={`h-full transition-all duration-300 rounded-full ${
-                isExceeded ? 'bg-[#B91C1C]' : 'bg-[#0A0A0A]'
+        {/* KPI 4: Multichannel Distribution Overview */}
+        <div className="rounded-2xl bg-white border border-[#EDF0F2] p-5 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold tracking-wider uppercase text-[#64748B]">
+                Channel Diversity
+              </p>
+              <div className="text-[26px] font-bold tracking-tight text-[#1F2937] tabular-nums leading-none mt-1.5">
+                4 Channels
+              </div>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-[#FEF3C7] text-[#D97706] flex items-center justify-center shrink-0">
+              <PieChart className="w-5 h-5 stroke-[2.2]" />
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-[#EDF0F2] flex items-center justify-between text-xs text-[#64748B]">
+            <span>Meta &bull; Google &bull; LinkedIn &bull; WA</span>
+            <span className="font-semibold text-[#1F2937]">Balanced</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Visual Capacity Meter & Channel Aggregations */}
+      <div className="rounded-2xl bg-white border border-[#EDF0F2] p-6 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-[#1F2937]">Monthly Budget Utilization</h2>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Live consumption against configured workspace ceiling for {selectedMonth}.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-[#64748B]">
+              Committed:{' '}
+              <strong className="font-bold text-[#1F2937] tabular-nums">
+                {formatCurrency(totalAllocated)}
+              </strong>{' '}
+              / {formatCurrency(overallCap)}
+            </span>
+            <span
+              className={`px-2.5 py-0.5 rounded-full font-bold tabular-nums ${
+                isExceeded
+                  ? 'bg-rose-100 text-rose-800'
+                  : isNearLimit
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-[#E8F7F1] text-[#10B981]'
               }`}
-              style={{ width: `${percentUsed}%` }}
-            />
+            >
+              {percentUsed}%
+            </span>
+          </div>
+        </div>
+
+        {/* Progress Bar Container */}
+        <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden p-0.5">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              isExceeded
+                ? 'bg-rose-600'
+                : isNearLimit
+                  ? 'bg-amber-500'
+                  : 'bg-[#10B981]'
+            }`}
+            style={{ width: `${Math.min(100, percentUsed)}%` }}
+          />
+        </div>
+
+        {/* Progress Milestones */}
+        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+          <span>0% Baseline</span>
+          <span>50% Midpoint</span>
+          <span>85% Warning</span>
+          <span>100% Target Ceiling</span>
+        </div>
+
+        {/* Aggregated Channel Distribution Breakdown */}
+        <div className="pt-3 border-t border-[#EDF0F2] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center justify-between text-[#64748B]">
+              <span className="font-semibold">Meta Ads</span>
+              <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.2 rounded-md">
+                50% Target
+              </span>
+            </div>
+            <div className="text-base font-bold text-[#1F2937] tabular-nums mt-1">
+              {formatCurrency(channelTotals.meta)}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between text-[12px] text-[#737373] pt-1">
-            <span>0% Capacity</span>
-            <span>100% Target Cap</span>
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center justify-between text-[#64748B]">
+              <span className="font-semibold">Google Ads</span>
+              <span className="text-[10px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.2 rounded-md">
+                35% Target
+              </span>
+            </div>
+            <div className="text-base font-bold text-[#1F2937] tabular-nums mt-1">
+              {formatCurrency(channelTotals.google)}
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Per-Project Allocation Breakdown */}
-      <Card>
-        <CardHeader className="border-b border-[#E5E5E5] pb-3">
-          <CardTitle className="text-[16px] font-semibold text-[#0A0A0A] flex items-center space-x-2">
-            <Wallet className="w-4 h-4 text-[#0A0A0A]" />
-            <span>Per-project allocation &amp; channel spend</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-4 space-y-4">
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center justify-between text-[#64748B]">
+              <span className="font-semibold">LinkedIn B2B</span>
+              <span className="text-[10px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.2 rounded-md">
+                10% Target
+              </span>
+            </div>
+            <div className="text-base font-bold text-[#1F2937] tabular-nums mt-1">
+              {formatCurrency(channelTotals.linkedin)}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+            <div className="flex items-center justify-between text-[#64748B]">
+              <span className="font-semibold">WhatsApp API</span>
+              <span className="text-[10px] bg-teal-100 text-teal-700 font-bold px-1.5 py-0.2 rounded-md">
+                Direct
+              </span>
+            </div>
+            <div className="text-base font-bold text-[#1F2937] tabular-nums mt-1">
+              {formatCurrency(channelTotals.whatsapp)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Per-Project Allocation Breakdown Section */}
+      <div className="rounded-2xl bg-white border border-[#EDF0F2] p-6 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#EDF0F2]">
+          <div>
+            <h2 className="text-base font-bold text-[#1F2937] flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#10B981]" />
+              <span>Project Allocation &amp; Channel Distribution</span>
+            </h2>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Specify monthly budgets per project. Updating total spend automatically adjusts channels proportionally, or edit each channel directly.
+            </p>
+          </div>
+          <span className="text-xs text-[#64748B] font-semibold bg-slate-100 px-3 py-1 rounded-full self-start sm:self-auto">
+            {allocations.length} Active Catalog Projects
+          </span>
+        </div>
+
+        <div className="pt-5 space-y-5">
           {isLoading ? (
-            <div className="p-8 text-center text-[14px] text-[#737373]">
-              Loading project allocations...
+            <div className="space-y-4">
+              {[1, 2].map((n) => (
+                <div
+                  key={n}
+                  className="rounded-2xl border border-[#EDF0F2] p-5 space-y-4 animate-pulse bg-slate-50/50"
+                >
+                  <div className="h-6 w-48 bg-slate-200 rounded-md" />
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                    <div className="h-16 bg-slate-100 rounded-xl" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : allocations.length === 0 ? (
             <EmptyState
-              icon={<Wallet className="w-10 h-10 text-[#737373]" />}
+              icon={<Wallet className="w-10 h-10 text-[#64748B]" />}
               title="No project allocations"
-              description="No projects allocated yet. Ensure active projects exist in your catalog."
+              description="No projects found in this organization. Create catalog projects to begin allocating marketing budgets."
+              action={
+                <Link to="/projects/new">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#10B981] text-white text-xs font-semibold hover:bg-[#059669] transition-all cursor-pointer"
+                  >
+                    <span>Create Catalog Project</span>
+                  </button>
+                </Link>
+              }
             />
           ) : (
-            <div className="space-y-4">
-              {allocations.map((item) => (
+            allocations.map((item) => {
+              const projectShare =
+                overallCap > 0
+                  ? Math.round(((item.allocatedAmount || 0) / overallCap) * 100)
+                  : 0;
+
+              return (
                 <div
                   key={item.projectId}
-                  className="border border-[#E5E5E5] rounded-[10px] bg-white p-4 space-y-4"
+                  className="rounded-2xl border border-[#EDF0F2] bg-white p-5 space-y-4 shadow-xs hover:border-slate-300 transition-all"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E5E5] pb-3">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2.5 bg-[#F5F5F5] rounded-[8px]">
-                        <Building className="w-4 h-4 text-[#0A0A0A]" />
+                  {/* Project Top Bar */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EDF0F2] pb-3.5">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-slate-100 text-[#1F2937] flex items-center justify-center shrink-0">
+                        <Building2 className="w-5 h-5 text-[#10B981]" />
                       </div>
                       <div>
-                        <h3 className="text-[15px] font-semibold text-[#0A0A0A]">{item.projectName}</h3>
-                        <span className="text-[12px] text-[#737373]">
-                          Project ID: <span className="font-mono">{item.projectId}</span>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-[#1F2937]">{item.projectName}</h3>
+                          <span className="text-[10px] font-semibold bg-slate-100 text-[#64748B] px-2 py-0.5 rounded-full">
+                            {projectShare}% of cap
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-400 font-mono">
+                          ID: {item.projectId}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[13px] font-medium text-[#525252]">Total spend:</span>
-                      <div className="flex items-center space-x-1">
-                        <span className="text-[13px] text-[#737373]">₹</span>
+                    {/* Total Project Allocation Field & Quick Buttons */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAdd(item.projectId, 10000)}
+                          className="px-2 py-1 rounded-lg border border-[#EDF0F2] bg-slate-50 text-[11px] font-semibold text-[#1F2937] hover:bg-slate-100 transition-all cursor-pointer"
+                        >
+                          +₹10k
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAdd(item.projectId, 50000)}
+                          className="px-2 py-1 rounded-lg border border-[#EDF0F2] bg-slate-50 text-[11px] font-semibold text-[#1F2937] hover:bg-slate-100 transition-all cursor-pointer"
+                        >
+                          +₹50k
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-[#EDF0F2]">
+                        <span className="text-xs font-semibold text-[#64748B]">Total: ₹</span>
                         <input
                           type="number"
                           value={item.allocatedAmount}
@@ -336,78 +663,131 @@ export function BudgetPage() {
                           }
                           step="5000"
                           min="0"
-                          className="w-32 text-[14px] font-semibold tabular-nums p-1.5 border border-[#E5E5E5] rounded-[6px] focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] text-right"
+                          className="w-28 text-sm font-bold text-[#1F2937] tabular-nums bg-transparent focus:outline-none text-right"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Multichannel Distribution */}
+                  {/* Channel Breakdown Grid */}
                   <div>
-                    <span className="text-[12px] font-medium text-[#737373] block mb-2">
-                      Channel distribution
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <Input
-                        label="Meta Ads (IG/FB)"
-                        type="number"
-                        step="1000"
-                        value={String(item.metaAds)}
-                        onChange={(e) =>
-                          handleUpdateAllocation(
-                            item.projectId,
-                            'metaAds',
-                            Number(e.target.value) || 0
-                          )
-                        }
-                      />
-                      <Input
-                        label="Google Ads (Search/PMax)"
-                        type="number"
-                        step="1000"
-                        value={String(item.googleAds)}
-                        onChange={(e) =>
-                          handleUpdateAllocation(
-                            item.projectId,
-                            'googleAds',
-                            Number(e.target.value) || 0
-                          )
-                        }
-                      />
-                      <Input
-                        label="LinkedIn B2B Sponsored"
-                        type="number"
-                        step="1000"
-                        value={String(item.linkedinAds)}
-                        onChange={(e) =>
-                          handleUpdateAllocation(
-                            item.projectId,
-                            'linkedinAds',
-                            Number(e.target.value) || 0
-                          )
-                        }
-                      />
-                      <Input
-                        label="Direct WhatsApp API"
-                        type="number"
-                        step="1000"
-                        value={String(item.directWhatsapp)}
-                        onChange={(e) =>
-                          handleUpdateAllocation(
-                            item.projectId,
-                            'directWhatsapp',
-                            Number(e.target.value) || 0
-                          )
-                        }
-                      />
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-[#64748B]">
+                        Multichannel Distribution (Auto-balanced or custom edit)
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Sum: {formatCurrency(item.allocatedAmount)}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* Meta Ads Channel */}
+                      <div className="p-3 rounded-xl border border-[#EDF0F2] bg-white focus-within:border-[#10B981] transition-all">
+                        <div className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                          <span className="font-semibold text-[#1F2937]">Meta Ads (FB/IG)</span>
+                          <span className="text-[10px] text-blue-600 font-bold">50%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            step="1000"
+                            min="0"
+                            value={item.metaAds}
+                            onChange={(e) =>
+                              handleUpdateAllocation(
+                                item.projectId,
+                                'metaAds',
+                                Number(e.target.value) || 0
+                              )
+                            }
+                            className="w-full text-xs font-bold text-[#1F2937] tabular-nums focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Google Ads Channel */}
+                      <div className="p-3 rounded-xl border border-[#EDF0F2] bg-white focus-within:border-[#10B981] transition-all">
+                        <div className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                          <span className="font-semibold text-[#1F2937]">Google Ads</span>
+                          <span className="text-[10px] text-emerald-600 font-bold">35%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            step="1000"
+                            min="0"
+                            value={item.googleAds}
+                            onChange={(e) =>
+                              handleUpdateAllocation(
+                                item.projectId,
+                                'googleAds',
+                                Number(e.target.value) || 0
+                              )
+                            }
+                            className="w-full text-xs font-bold text-[#1F2937] tabular-nums focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* LinkedIn Channel */}
+                      <div className="p-3 rounded-xl border border-[#EDF0F2] bg-white focus-within:border-[#10B981] transition-all">
+                        <div className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                          <span className="font-semibold text-[#1F2937]">LinkedIn B2B</span>
+                          <span className="text-[10px] text-purple-600 font-bold">10%</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            step="1000"
+                            min="0"
+                            value={item.linkedinAds}
+                            onChange={(e) =>
+                              handleUpdateAllocation(
+                                item.projectId,
+                                'linkedinAds',
+                                Number(e.target.value) || 0
+                              )
+                            }
+                            className="w-full text-xs font-bold text-[#1F2937] tabular-nums focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* WhatsApp Channel */}
+                      <div className="p-3 rounded-xl border border-[#EDF0F2] bg-white focus-within:border-[#10B981] transition-all">
+                        <div className="flex items-center justify-between text-xs text-[#64748B] mb-1">
+                          <span className="font-semibold text-[#1F2937]">WhatsApp Direct</span>
+                          <span className="text-[10px] text-teal-600 font-bold">Direct</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            step="1000"
+                            min="0"
+                            value={item.directWhatsapp}
+                            onChange={(e) =>
+                              handleUpdateAllocation(
+                                item.projectId,
+                                'directWhatsapp',
+                                Number(e.target.value) || 0
+                              )
+                            }
+                            className="w-full text-xs font-bold text-[#1F2937] tabular-nums focus:outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

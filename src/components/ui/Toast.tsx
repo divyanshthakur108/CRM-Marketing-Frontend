@@ -34,34 +34,48 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const icons = {
-    info: <Info className="h-4 w-4 text-black shrink-0" />,
-    success: <CheckCircle2 className="h-4 w-4 text-black shrink-0" />,
-    warning: <AlertTriangle className="h-4 w-4 text-black shrink-0" />,
-    error: <AlertCircle className="h-4 w-4 text-black shrink-0" />,
+    info: <Info className="h-4 w-4 text-feedback-info shrink-0" />,
+    success: <CheckCircle2 className="h-4 w-4 text-feedback-success shrink-0" />,
+    warning: <AlertTriangle className="h-4 w-4 text-feedback-warning shrink-0" />,
+    error: <AlertCircle className="h-4 w-4 text-feedback-danger shrink-0" />,
+  };
+
+  const borders: Record<ToastType, string> = {
+    info: 'border-feedback-info/30',
+    success: 'border-feedback-success/30',
+    warning: 'border-feedback-warning/30',
+    error: 'border-feedback-danger/30',
   };
 
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      <div
+        role="region"
+        aria-label="Notifications"
+        className="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
+            role="status"
+            aria-live="polite"
             className={cn(
-              'pointer-events-auto flex items-start justify-between bg-white border border-black p-4 shadow-lg transition-all animate-in slide-in-from-bottom-5',
-              'text-black'
+              'pointer-events-auto flex items-start justify-between bg-app-surface border p-4 rounded-card shadow-modal transition-all animate-in slide-in-from-bottom-5 text-ink',
+              borders[t.type || 'info']
             )}
           >
-            <div className="flex items-start space-x-3">
+            <div className="flex items-start space-x-3 min-w-0">
               <span className="mt-0.5">{icons[t.type || 'info']}</span>
-              <div>
-                {t.title && <p className="text-xs font-bold uppercase tracking-wider">{t.title}</p>}
-                <p className="text-xs text-neutral-700">{t.message}</p>
+              <div className="min-w-0 flex-1">
+                {t.title && <p className="text-caption-text font-semibold text-ink leading-tight">{t.title}</p>}
+                <p className="text-small-text text-ink-muted leading-snug">{t.message}</p>
               </div>
             </div>
             <button
               onClick={() => removeToast(t.id)}
-              className="ml-4 text-neutral-500 hover:text-black p-0.5"
+              className="ml-3 text-ink-muted hover:text-ink hover:bg-app-surface-muted rounded-control p-1 transition-colors shrink-0"
+              aria-label="Dismiss notification"
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -31,7 +31,7 @@ import {
   Trash2,
   Edit2,
   Layers,
-  Image,
+  Image as ImageIcon,
   Clock,
   Check,
   CheckCircle2,
@@ -40,6 +40,12 @@ import {
   AlertCircle,
   Loader2,
   Sparkles,
+  ChevronRight,
+  Building2,
+  ShieldCheck,
+  MapPin,
+  Phone,
+  Compass,
 } from 'lucide-react';
 import { useManualGenerateCreatives } from '../hooks/useCreatives';
 import { parsePriceRange, parsePriceToNumber } from '../utils/priceParser';
@@ -155,11 +161,7 @@ const projectFormSchema = z
     (data) => {
       // Per-category validation: Plots reject BHK, floor, and furnishing
       if (isPlotType(data.subtype)) {
-        if (
-          data.bhk ||
-          data.floor ||
-          data.furnishing
-        ) {
+        if (data.bhk || data.floor || data.furnishing) {
           return false;
         }
       }
@@ -185,8 +187,8 @@ const FORM_SECTIONS: FormSectionMeta[] = [
   {
     id: 1,
     label: 'Basic Information',
-    title: '1. Basic Information',
-    description: 'Core project identity, classification, pricing range, and developer contacts.',
+    title: '1. Basic Information & Compliance',
+    description: 'Core project identity, classification, pricing range, developer contacts, and RERA registration.',
     required: true,
   },
   {
@@ -199,15 +201,15 @@ const FORM_SECTIONS: FormSectionMeta[] = [
   {
     id: 3,
     label: 'Amenities & Features',
-    title: '3. Amenities & Features',
-    description: 'Select standard amenities and specify custom property features.',
+    title: '3. Amenities & Facilities',
+    description: 'Select standard development amenities and specify custom site amenities.',
     required: false,
   },
   {
     id: 4,
     label: 'Photos & Videos',
-    title: '4. Photos & Videos',
-    description: 'Upload and tag real photography, drone videos, and official brochures.',
+    title: '4. Digital Media & Visual Assets',
+    description: 'Upload high-resolution photography, floor plans, drone videos, and official brochures.',
     required: true,
   },
 ];
@@ -225,6 +227,13 @@ export function ProjectEditorPage() {
   const isEditing = isValidId;
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const effectiveProjectId = isValidId ? id! : createdProjectId || '';
+
+  // Reset created ID when navigating back to create mode (/projects/new)
+  useEffect(() => {
+    if (!isValidId) {
+      setCreatedProjectId(null);
+    }
+  }, [isValidId]);
 
   useEffect(() => {
     if (id === 'media') {
@@ -271,7 +280,7 @@ export function ProjectEditorPage() {
   const [unitStatus, setUnitStatus] = useState<'AVAILABLE' | 'BLOCKED' | 'SOLD'>('AVAILABLE');
   const [unitErrors, setUnitErrors] = useState<{ name?: string; area?: string; price?: string }>({});
 
-  // Amenities State (Switched to Inter font)
+  // Amenities State
   const [amenitiesList, setAmenitiesList] = useState<string[]>([]);
   const [customAmenity, setCustomAmenity] = useState('');
 
@@ -496,7 +505,7 @@ export function ProjectEditorPage() {
       getValues('status')?.toLowerCase() === 'ready'
   );
 
-  // Amenity Management (Using Inter font)
+  // Amenity Management
   const toggleAmenity = (item: string) => {
     setAmenitiesList((prev) =>
       prev.includes(item) ? prev.filter((a) => a !== item) : [...prev, item]
@@ -515,15 +524,9 @@ export function ProjectEditorPage() {
     setAmenitiesList((prev) => prev.filter((a) => a !== item));
   };
 
-  // Section Navigation with Unsaved Warning
+  // Seamless Section Navigation (form values remain preserved in useForm & sessionStorage draft)
   const handleNavigateSection = (targetSection: number) => {
     if (targetSection === currentSection) return;
-    if (isDirty) {
-      const confirmLeave = confirm(
-        'You have unsaved changes in this section. Discard changes and switch section?'
-      );
-      if (!confirmLeave) return;
-    }
     setCurrentSection(targetSection);
   };
 
@@ -858,7 +861,7 @@ export function ProjectEditorPage() {
       setSummaryIssues(issues);
       const invalidSections = Array.from(new Set(issues.map((i) => i.section)));
       setInvalidSectionIds(invalidSections);
-      
+
       const firstSection = invalidSections[0];
       setCurrentSection(firstSection);
 
@@ -1198,134 +1201,189 @@ export function ProjectEditorPage() {
     }
   };
 
+  // Inventory KPI metrics
+  const unitStats = useMemo(() => {
+    const total = units.length;
+    const available = units.filter((u) => u.status === 'AVAILABLE').length;
+    const blocked = units.filter((u) => u.status === 'BLOCKED').length;
+    const sold = units.filter((u) => u.status === 'SOLD').length;
+    return { total, available, blocked, sold };
+  }, [units]);
+
   if (isProjectLoading && effectiveProjectId) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6">
+        <div className="h-8 w-64 bg-slate-100 animate-pulse rounded-lg" />
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="md:col-span-4 lg:col-span-3 space-y-3">
+            <Skeleton className="h-48 w-full rounded-2xl" />
+          </div>
+          <div className="md:col-span-8 lg:col-span-9 space-y-4">
+            <Skeleton className="h-80 w-full rounded-2xl" />
+            <Skeleton className="h-48 w-full rounded-2xl" />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Sticky Top Navigation & Status Bar */}
-      <div className="sticky top-0 z-10 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 bg-white border-b border-border mb-6">
+      {/* Breadcrumb Navigation */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-slate-500">
+        <Link to="/dashboard" className="hover:text-slate-900 transition-colors flex items-center gap-1">
+          Dashboard
+        </Link>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <Link to="/projects" className="hover:text-slate-900 transition-colors">
+          Property Catalog
+        </Link>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+        <span className="text-slate-900 font-medium truncate max-w-[260px]">
+          {isEditing ? (project?.name || getValues('name') || 'Edit Development') : 'New Development'}
+        </span>
+      </nav>
+
+      {/* Sticky Top Header Bar */}
+      <div className="sticky top-0 z-20 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3.5 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-sm transition-all">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-3">
             <Link to="/projects">
-              <Button variant="outline" size="sm" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<ArrowLeft className="w-4 h-4 text-slate-600" />}
+                className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-medium"
+              >
                 Back
               </Button>
             </Link>
             <div>
-              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
-                  {isEditing ? `Edit ${project?.name || getValues('name')}` : 'New Property Development'}
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                  {isEditing ? `Edit ${project?.name || getValues('name') || 'Property'}` : 'New Property Development'}
                 </h1>
                 <StatusBadge status={isReady ? 'ready' : getValues('status') || 'draft'} />
                 {isPlot && (
-                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-neutral-100 text-text-secondary border border-border">
-                    Plot
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                    Plot Parcel
                   </span>
                 )}
               </div>
-              <div className="flex items-center space-x-2 text-meta text-text-muted mt-0.5 tabular-nums">
-                <span className="flex items-center text-text-secondary">
-                  <Clock className="w-3.5 h-3.5 mr-1" />
+              <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 tabular-nums">
+                <span className="flex items-center text-slate-600">
+                  <Clock className="w-3.5 h-3.5 mr-1 text-slate-400" />
                   Auto-saved {autoSaveTime}
                 </span>
-                <span>&bull;</span>
-                <span>{completedSectionsCount} of 4 sections complete</span>
+                <span className="text-slate-300">&bull;</span>
+                <span className="font-medium text-slate-700">{completedSectionsCount} of 4 sections complete</span>
               </div>
             </div>
           </div>
 
-        {/* Global Action Bar */}
-        <div className="flex items-center space-x-2">
-          {effectiveProjectId && (
+          {/* Global Header Actions */}
+          <div className="flex items-center gap-2.5 self-end md:self-auto">
+            {effectiveProjectId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs tracking-wide"
+                onClick={async () => {
+                  try {
+                    const res = await manualGenerateCreativesMutation.mutateAsync(effectiveProjectId);
+                    toast({
+                      title: 'Creatives Enqueued',
+                      message: `${res.enqueued} creative job sets enqueued. Head to Creative Studio to review them.`,
+                      type: 'success',
+                    });
+                  } catch (err: unknown) {
+                    const msg =
+                      err && typeof err === 'object' && 'response' in err
+                        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
+                        : 'Generation failed';
+                    toast({
+                      title: 'Generation Failed',
+                      message: msg || 'Could not enqueue creative generation.',
+                      type: 'error',
+                    });
+                  }
+                }}
+                isLoading={manualGenerateCreativesMutation.isPending}
+                leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
+              >
+                Generate Creatives
+              </Button>
+            )}
+
             <Button
               type="button"
-              variant="outline"
+              variant="primary"
               size="sm"
-              className="text-xs uppercase tracking-wider font-semibold border-black"
-              onClick={async () => {
-                try {
-                  const res = await manualGenerateCreativesMutation.mutateAsync(effectiveProjectId);
-                  toast({
-                    title: 'Creatives Enqueued',
-                    message: `${res.enqueued} creative job sets enqueued. Head to Creative Studio to review them.`,
-                    type: 'success',
-                  });
-                } catch (err: unknown) {
-                  const msg =
-                    err && typeof err === 'object' && 'response' in err
-                      ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-                      : 'Generation failed';
-                  toast({
-                    title: 'Generation Failed',
-                    message: msg || 'Could not enqueue creative generation.',
-                    type: 'error',
-                  });
-                }
-              }}
-              isLoading={manualGenerateCreativesMutation.isPending}
-              leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+              disabled={isSubmittingFinal}
+              className={`rounded-xl text-xs font-semibold tracking-wide transition-all ${
+                isReady
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  : isSubmittingFinal
+                  ? 'bg-slate-700 text-white cursor-wait'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+              }`}
+              onClick={handleFinishAndMarkAsReady}
+              title={isReady ? 'Project is ready — click to view in catalog' : 'Validate all 4 sections and mark project as ready'}
             >
-              Generate Creatives
+              {isReady ? (
+                <>
+                  <Check className="w-3.5 h-3.5 mr-1.5" />
+                  Ready in Catalog
+                </>
+              ) : isSubmittingFinal ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Validating &amp; Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                  Finish &amp; Mark as Ready
+                </>
+              )}
             </Button>
-          )}
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isSubmittingFinal}
-            className={`text-xs uppercase tracking-wider font-semibold border-black ${
-              isReady
-                ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                : isSubmittingFinal
-                ? 'bg-neutral-800 text-white cursor-wait'
-                : 'bg-black text-white hover:bg-neutral-800'
-            }`}
-            onClick={handleFinishAndMarkAsReady}
-            title={isReady ? 'Project is ready — click to view in catalog' : 'Validate all 4 sections and mark project as ready'}
-          >
-            {isReady ? (
-              <>
-                <Check className="w-3.5 h-3.5 mr-1.5" />
-                Ready!
-              </>
-            ) : isSubmittingFinal ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                Finish &amp; Mark as Ready
-              </>
-            )}
-          </Button>
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Primary Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={(val) => setActiveTab(val as 'details' | 'units')}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="details">Project Specifications Form (4 Sections)</TabsTrigger>
-          <TabsTrigger value="units">
-            Inventory &amp; Units ({units.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+          <TabsList className="bg-slate-100/90 p-1 rounded-xl border border-slate-200/60 inline-flex">
+            <TabsTrigger
+              value="details"
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+            >
+              <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Project Specifications</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200/80 text-slate-700 font-bold tabular-nums">
+                {completedSectionsCount}/4
+              </span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="units"
+              className="rounded-lg px-4 py-2 text-xs font-semibold text-slate-600 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+            >
+              <Layers className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Unit &amp; Tower Inventory</span>
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold tabular-nums">
+                {units.length}
+              </span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ================= TAB 1: 4-SECTION PROJECT SPECIFICATIONS FORM ================= */}
-        <TabsContent value="details" className="pt-2">
+        <TabsContent value="details" className="pt-4">
           {/* MOBILE STEPPER (Visible only on small screens) */}
-          <div className="md:hidden mb-6 border border-neutral-200 bg-white p-3">
-            <div className="flex items-center justify-between gap-1 overflow-x-auto pb-1 scrollbar-none">
+          <div className="md:hidden mb-6 bg-white rounded-2xl border border-slate-200/80 p-3 shadow-sm">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               {FORM_SECTIONS.map((sec) => {
                 const isActive = currentSection === sec.id;
                 const hasError = invalidSectionIds.includes(sec.id);
@@ -1343,25 +1401,31 @@ export function ProjectEditorPage() {
                     key={sec.id}
                     type="button"
                     onClick={() => handleNavigateSection(sec.id)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 text-xs whitespace-nowrap border transition-colors ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs whitespace-nowrap rounded-xl border font-medium transition-all ${
                       hasError
-                        ? 'border-red-600 bg-red-50 text-red-700 font-bold'
+                        ? 'border-rose-300 bg-rose-50 text-rose-800 font-bold'
                         : isActive
-                        ? 'border-black bg-black text-white font-bold'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold shadow-sm'
                         : isComplete
-                        ? 'border-neutral-300 bg-neutral-100 text-black'
-                        : 'border-transparent text-neutral-500'
+                        ? 'border-slate-200 bg-slate-50 text-slate-800'
+                        : 'border-transparent bg-slate-100/60 text-slate-500'
                     }`}
                   >
                     <span
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-semibold ${
-                        hasError ? 'bg-[#B91C1C] text-white' : ''
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                        hasError
+                          ? 'bg-rose-600 text-white'
+                          : isComplete
+                          ? 'bg-emerald-600 text-white'
+                          : isActive
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-slate-200 text-slate-600'
                       }`}
                     >
                       {hasError ? (
                         <AlertCircle className="w-3.5 h-3.5 text-white" />
                       ) : isComplete ? (
-                        <Check className="w-3.5 h-3.5 text-current" />
+                        <Check className="w-3.5 h-3.5 text-white" />
                       ) : (
                         sec.id
                       )}
@@ -1373,31 +1437,31 @@ export function ProjectEditorPage() {
             </div>
           </div>
 
-          {/* MAIN 4-SECTION LAYOUT: Sticky Left Step List + One Section at a Time */}
+          {/* MAIN 4-SECTION LAYOUT: Sticky Left Step List + Active Section Form */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
             {/* DESKTOP STICKY LEFT STEP LIST */}
-            <div className="hidden md:block md:col-span-4 lg:col-span-3 sticky top-6 space-y-4">
-              <div className="border border-[#E5E5E5] bg-white rounded-[10px] p-4 space-y-4 shadow-card">
+            <div className="hidden md:block md:col-span-4 lg:col-span-3 sticky top-24 space-y-4">
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-4 space-y-4 shadow-sm">
                 {/* Header & Progress Summary */}
-                <div className="space-y-2 border-b border-[#E5E5E5] pb-3">
-                  <span className="text-[12px] font-medium text-[#737373]">
-                    Form Navigation
+                <div className="space-y-2 border-b border-slate-100 pb-3">
+                  <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-400">
+                    Workflow Checklist
                   </span>
-                  <div className="flex items-center justify-between text-[13px] font-semibold text-[#0A0A0A]">
-                    <span>Progress Summary</span>
-                    <span className="tabular-nums">{completedSectionsCount} of 4 complete</span>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-900">
+                    <span>Specifications Progress</span>
+                    <span className="tabular-nums text-emerald-600 font-semibold">{completedSectionsCount} of 4 complete</span>
                   </div>
                   {/* Progress Bar */}
-                  <div className="w-full bg-[#F5F5F5] h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                     <div
-                      className="bg-black h-full transition-all duration-300"
+                      className="bg-emerald-500 h-full transition-all duration-300 rounded-full"
                       style={{ width: `${(completedSectionsCount / 4) * 100}%` }}
                     />
                   </div>
                 </div>
 
                 {/* Vertical Step Items */}
-                <nav className="space-y-1.5">
+                <nav className="space-y-2">
                   {FORM_SECTIONS.map((sec) => {
                     const isActive = currentSection === sec.id;
                     const hasError = invalidSectionIds.includes(sec.id);
@@ -1415,25 +1479,27 @@ export function ProjectEditorPage() {
                         key={sec.id}
                         type="button"
                         onClick={() => handleNavigateSection(sec.id)}
-                        className={`w-full text-left p-3 border transition-all flex items-start justify-between gap-2 ${
+                        className={`w-full text-left p-3 rounded-xl border transition-all flex items-start justify-between gap-2 ${
                           hasError
-                            ? 'border-red-600 bg-red-50/70 ring-1 ring-red-600'
+                            ? 'border-rose-400 bg-rose-50/80 text-rose-900 ring-1 ring-rose-400'
                             : isActive
-                            ? 'border-black bg-neutral-50 ring-1 ring-black'
-                            : 'border-neutral-200 bg-white hover:border-neutral-400'
+                            ? 'border-emerald-500 bg-emerald-50/50 text-slate-900 shadow-sm ring-1 ring-emerald-500'
+                            : isComplete
+                            ? 'border-slate-200/90 bg-white hover:border-slate-300 text-slate-800'
+                            : 'border-slate-100 bg-slate-50/40 hover:bg-slate-50 text-slate-500'
                         }`}
                       >
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
                             <span
                               className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                                 hasError
-                                  ? 'bg-red-600 text-white'
+                                  ? 'bg-rose-600 text-white'
                                   : isComplete
-                                  ? 'bg-black text-white'
+                                  ? 'bg-emerald-600 text-white'
                                   : isActive
-                                  ? 'bg-neutral-800 text-white'
-                                  : 'bg-neutral-200 text-neutral-700'
+                                  ? 'bg-slate-900 text-white'
+                                  : 'bg-slate-200 text-slate-600'
                               }`}
                             >
                               {hasError ? (
@@ -1445,24 +1511,24 @@ export function ProjectEditorPage() {
                               )}
                             </span>
                             <span
-                              className={`text-xs font-bold font-sans truncate ${
-                                hasError ? 'text-red-700' : 'text-black'
+                              className={`text-xs font-bold truncate ${
+                                hasError ? 'text-rose-800' : isActive ? 'text-slate-900' : 'text-slate-700'
                               }`}
                             >
                               {sec.label}
                             </span>
                             {sec.required && (
-                              <span className="text-red-500 font-bold" title="Required section">
+                              <span className="text-rose-500 font-bold" title="Required section">
                                 *
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-neutral-500 line-clamp-1 pl-6">
+                          <p className="text-[11px] text-slate-500 line-clamp-1 pl-7">
                             {sec.description}
                           </p>
                         </div>
                         {hasError && (
-                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         )}
                       </button>
                     );
@@ -1470,63 +1536,63 @@ export function ProjectEditorPage() {
                 </nav>
 
                 {/* Mark as Ready Bottom Box */}
-                <div className="pt-3 border-t border-neutral-200 space-y-2">
+                <div className="pt-3 border-t border-slate-100 space-y-2">
                   <Button
                     type="button"
                     variant="outline"
                     disabled={isSubmittingFinal}
-                    className={`w-full text-xs font-bold uppercase tracking-wider border-black ${
+                    className={`w-full text-xs font-bold tracking-wide rounded-xl transition-all ${
                       isReady
                         ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
                         : isSubmittingFinal
-                        ? 'bg-neutral-800 text-white cursor-wait'
-                        : 'bg-black text-white hover:bg-neutral-800'
+                        ? 'bg-slate-700 text-white cursor-wait border-slate-700'
+                        : 'bg-slate-900 text-white hover:bg-slate-800 border-slate-900 shadow-sm'
                     }`}
                     onClick={handleFinishAndMarkAsReady}
                   >
                     {isReady ? (
                       <>
                         <Check className="w-3.5 h-3.5 mr-1" />
-                        Ready!
+                        Ready in Catalog
                       </>
                     ) : isSubmittingFinal ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                        Saving...
+                        Validating...
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                        Finish &amp; Mark as Ready
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                        Finish &amp; Mark Ready
                       </>
                     )}
                   </Button>
-                  <p className="text-[12px] text-[#737373] text-center leading-normal">
+                  <p className="text-[11px] text-slate-500 text-center leading-relaxed">
                     {isReady
-                      ? 'Project is validated and ready in database. Click to view in catalog.'
-                      : 'Validates all 4 sections, commits to database, and marks ready.'}
+                      ? 'All specifications validated. Click to view in catalog.'
+                      : 'Validates all 4 sections, checks RERA data, and updates status.'}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT COLUMN: ACTIVE SECTION ONLY */}
+            {/* RIGHT COLUMN: ACTIVE SECTION FORM */}
             <div className="col-span-12 md:col-span-8 lg:col-span-9 space-y-6">
               {/* SUMMARY ISSUES BANNER (aria-live="assertive") */}
               {summaryIssues.length > 0 && (
                 <div
                   role="alert"
                   aria-live="assertive"
-                  className="border border-[#FECACA] bg-[#FEF2F2] rounded-[10px] p-4 text-[13px] text-[#991B1B] space-y-2 animate-in fade-in"
+                  className="border border-rose-200 bg-rose-50/90 rounded-2xl p-4 text-xs text-rose-800 space-y-2 animate-in fade-in shadow-sm"
                 >
-                  <div className="flex items-center gap-2 text-[#991B1B] font-semibold">
-                    <AlertCircle className="w-4 h-4 text-[#B91C1C] shrink-0" />
-                    <span>Submission blocked — {summaryIssues.length} issue(s) detected</span>
+                  <div className="flex items-center gap-2 text-rose-900 font-bold">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Submission Blocked — {summaryIssues.length} issue(s) detected</span>
                   </div>
-                  <p className="text-[#525252] font-medium">
-                    Please fix the following problems before marking this project as ready:
+                  <p className="text-slate-600 font-medium">
+                    Please correct the following fields before marking this development as ready:
                   </p>
-                  <ul className="list-disc list-inside space-y-1 text-[#991B1B]">
+                  <ul className="list-disc list-inside space-y-1 text-rose-800">
                     {summaryIssues.map((issue, idx) => (
                       <li
                         key={idx}
@@ -1551,23 +1617,29 @@ export function ProjectEditorPage() {
                   </ul>
                 </div>
               )}
-              {/* SECTION HEADER CARD */}
-              <div className="border border-[#E5E5E5] bg-white rounded-[10px] p-5 shadow-card space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E5E5] pb-3">
+
+              {/* SECTION FORM CARD */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
                   <div>
-                    <span className="text-[12px] font-medium text-[#737373]">
-                      Section {currentSection} of 4
-                    </span>
-                    <h2 className="text-[20px] font-semibold text-[#0A0A0A] tracking-tight">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60 uppercase tracking-wider">
+                        Section {currentSection} of 4
+                      </span>
+                      {FORM_SECTIONS[currentSection - 1].required && (
+                        <span className="text-[11px] font-semibold text-rose-600">Required</span>
+                      )}
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                       {FORM_SECTIONS[currentSection - 1].title}
                     </h2>
-                    <p className="text-[13px] text-[#525252] mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       {FORM_SECTIONS[currentSection - 1].description}
                     </p>
                   </div>
 
                   {isDirty && (
-                    <Badge variant="outline" className="border-[#FDE68A] text-[#B45309] bg-[#FFFBEB] text-[12px]">
+                    <Badge variant="outline" className="border-amber-200 text-amber-800 bg-amber-50 text-xs self-start sm:self-auto">
                       Unsaved changes
                     </Badge>
                   )}
@@ -1575,149 +1647,187 @@ export function ProjectEditorPage() {
 
                 {/* ================= SECTION 1: BASIC INFORMATION ================= */}
                 {currentSection === 1 && (
-                  <div className="space-y-4 pt-1">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        label="Project Title / Marketing Name *"
-                        placeholder="e.g. DLF The Arbour"
-                        error={errors.name?.message}
-                        {...register('name')}
-                      />
+                  <div className="space-y-6 pt-1">
+                    {/* Identity & Classification Sub-Card */}
+                    <div className="space-y-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Identity &amp; Classification
+                      </h3>
 
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
-                          Typology Category *
-                        </label>
-                        <select
-                          {...register('category')}
-                          className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
-                        >
-                          <option value="Residential">Residential</option>
-                          <option value="Commercial">Commercial</option>
-                          <option value="Industrial">Industrial</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
-                          Development Status *
-                        </label>
-                        <select
-                          {...register('status')}
-                          className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
-                        >
-                          <option value="DRAFT">DRAFT</option>
-                          <option value="ACTIVE">ACTIVE</option>
-                          <option value="SOLD_OUT">SOLD OUT</option>
-                          <option value="ARCHIVED">ARCHIVED</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
-                          Commercial Intent *
-                        </label>
-                        <select
-                          {...register('saleVsRent')}
-                          className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
-                        >
-                          <option value="SALE">SALE</option>
-                          <option value="RENT">RENT</option>
-                          <option value="LEASE">LONG TERM LEASE</option>
-                        </select>
-                      </div>
-
-                      <Input
-                        label="Pricing Range Display *"
-                        placeholder="e.g. ₹ 1.5 Cr - ₹ 3.5 Cr"
-                        error={errors.priceDisplay?.message}
-                        {...register('priceDisplay')}
-                      />
-                    </div>
-
-                    {/* Address & City */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="md:col-span-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input
-                          label="Street Address / Location *"
-                          placeholder="e.g. Sector 63, Golf Course Extension Road"
-                          error={errors.address?.message}
-                          {...register('address')}
+                          label="Project Title / Marketing Name *"
+                          placeholder="e.g. DLF The Arbour"
+                          error={errors.name?.message}
+                          {...register('name')}
+                        />
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Typology Category *
+                          </label>
+                          <select
+                            {...register('category')}
+                            className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          >
+                            <option value="Residential">Residential Development</option>
+                            <option value="Commercial">Commercial Complex</option>
+                            <option value="Industrial">Industrial &amp; Logistics</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Development Status *
+                          </label>
+                          <select
+                            {...register('status')}
+                            className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          >
+                            <option value="DRAFT">DRAFT (Unpublished)</option>
+                            <option value="ACTIVE">ACTIVE (Marketing Phase)</option>
+                            <option value="SOLD_OUT">SOLD OUT</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Commercial Intent *
+                          </label>
+                          <select
+                            {...register('saleVsRent')}
+                            className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                          >
+                            <option value="SALE">SALE / FREEHOLD</option>
+                            <option value="RENT">RENTAL</option>
+                            <option value="LEASE">LONG-TERM LEASE</option>
+                          </select>
+                        </div>
+
+                        <Input
+                          label="Pricing Range Display *"
+                          placeholder="e.g. ₹ 1.5 Cr - ₹ 3.5 Cr"
+                          error={errors.priceDisplay?.message}
+                          {...register('priceDisplay')}
                         />
                       </div>
-                      <Input
-                        label="City *"
-                        placeholder="e.g. Gurugram"
-                        error={errors.city?.message}
-                        {...register('city')}
-                      />
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <Input
-                        label="State"
-                        placeholder="e.g. Haryana"
-                        error={errors.state?.message}
-                        {...register('state')}
-                      />
-                      <Input
-                        label="Postal Code *"
-                        placeholder="e.g. 122001"
-                        error={errors.pincode?.message}
-                        {...register('pincode')}
-                      />
-                      <Input
-                        label="Developer / Builder"
-                        placeholder="e.g. DLF Limited"
-                        error={errors.developer?.message}
-                        {...register('developer')}
-                      />
+                    {/* Geo-Location & Physical Address Sub-Card */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                        Location &amp; Postal Address
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                          <Input
+                            label="Street Address / Location *"
+                            placeholder="e.g. Sector 63, Golf Course Extension Road"
+                            error={errors.address?.message}
+                            {...register('address')}
+                          />
+                        </div>
+                        <Input
+                          label="City *"
+                          placeholder="e.g. Gurugram"
+                          error={errors.city?.message}
+                          {...register('city')}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <Input
+                          label="State"
+                          placeholder="e.g. Haryana"
+                          error={errors.state?.message}
+                          {...register('state')}
+                        />
+                        <Input
+                          label="Postal Code *"
+                          placeholder="e.g. 122001"
+                          error={errors.pincode?.message}
+                          {...register('pincode')}
+                        />
+                        <Input
+                          label="Developer / Builder"
+                          placeholder="e.g. DLF Limited"
+                          error={errors.developer?.message}
+                          {...register('developer')}
+                        />
+                      </div>
                     </div>
 
-                    {/* Developer Contacts & Website */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Input
-                        label="Official Contact Phone *"
-                        placeholder="e.g. +91 98765 43210"
-                        error={errors.contactNumber?.message}
-                        {...register('contactNumber')}
-                      />
-                      <Input
-                        label="Official Inquiries Email"
-                        placeholder="e.g. sales@dlf.in"
-                        error={errors.contactEmail?.message}
-                        {...register('contactEmail')}
-                      />
-                      <Input
-                        label="Project Website URL"
-                        placeholder="e.g. https://dlf.in/the-arbour"
-                        error={errors.website?.message}
-                        {...register('website')}
-                      />
+                    {/* Developer Contacts & Website Sub-Card */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                        Developer &amp; Inquiries Contact
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input
+                          label="Official Contact Phone *"
+                          placeholder="e.g. +91 98765 43210"
+                          error={errors.contactNumber?.message}
+                          {...register('contactNumber')}
+                        />
+                        <Input
+                          label="Official Inquiries Email"
+                          placeholder="e.g. sales@dlf.in"
+                          error={errors.contactEmail?.message}
+                          {...register('contactEmail')}
+                        />
+                        <Input
+                          label="Project Website URL"
+                          placeholder="e.g. https://dlf.in/the-arbour"
+                          error={errors.website?.message}
+                          {...register('website')}
+                        />
+                      </div>
                     </div>
 
-                    <Input
-                      label="RERA Registration Number"
-                      placeholder="e.g. RC/REP/HARERA/GGM/680/412/2023/24"
-                      error={errors.reraNumber?.message}
-                      {...register('reraNumber')}
-                    />
+                    {/* Statutory RERA Compliance Sub-Card */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          RERA Registration &amp; Compliance
+                        </h3>
+                        <span className="text-[11px] text-slate-400">Statutory Disclosure</span>
+                      </div>
+
+                      <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200/80 space-y-3">
+                        <Input
+                          label="RERA Registration Certificate Number"
+                          placeholder="e.g. RC/REP/HARERA/GGM/680/412/2023/24"
+                          error={errors.reraNumber?.message}
+                          {...register('reraNumber')}
+                        />
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          Enter the official project RERA number issued by the state regulatory authority (e.g. MahaRERA, HRERA, UP-RERA, K-RERA). If registration is pending, you may leave this field blank during draft preparation.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {/* ================= SECTION 2: PROPERTY SPECIFICATIONS ================= */}
                 {currentSection === 2 && (
-                  <div className="space-y-4 pt-1">
+                  <div className="space-y-6 pt-1">
                     {/* Subtype Dropdown */}
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                         Property Subtype Specification *
                       </label>
                       <select
                         {...register('subtype')}
-                        className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
+                        className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                       >
                         {category === 'Residential' ? (
                           <>
@@ -1747,7 +1857,7 @@ export function ProjectEditorPage() {
                         )}
                       </select>
                       {errors.subtype && (
-                        <p className="text-[11px] text-red-600 mt-1 font-sans">{errors.subtype.message}</p>
+                        <p className="text-xs text-rose-600 mt-1 font-medium">{errors.subtype.message}</p>
                       )}
                     </div>
 
@@ -1755,9 +1865,12 @@ export function ProjectEditorPage() {
                     {category === 'Residential' && (
                       <div className="space-y-4">
                         {isPlot ? (
-                          <div className="p-4 border border-neutral-200 bg-neutral-50 text-xs text-neutral-700 font-sans space-y-1">
-                            <p className="font-bold text-black uppercase">Residential Plot Rules</p>
-                            <p>
+                          <div className="p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/50 text-xs text-slate-700 space-y-2">
+                            <div className="flex items-center gap-1.5 font-bold text-emerald-900 uppercase">
+                              <Compass className="w-4 h-4 text-emerald-600" />
+                              Residential Plot / Land Parcel Rules
+                            </div>
+                            <p className="text-slate-600">
                               Plots represent unbuilt land parcels and cannot specify BHK configurations, floor numbers, or furnishings.
                             </p>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -1803,12 +1916,12 @@ export function ProjectEditorPage() {
                                 {...register('floor')}
                               />
                               <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                                   Furnishing Status
                                 </label>
                                 <select
                                   {...register('furnishing')}
-                                  className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
+                                  className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                                 >
                                   <option value="Unfurnished">Unfurnished</option>
                                   <option value="Semi-Furnished">Semi-Furnished</option>
@@ -1883,23 +1996,23 @@ export function ProjectEditorPage() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-neutral-100">
-                          <label className="flex items-center gap-2 text-xs font-sans text-neutral-800 cursor-pointer select-none">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+                          <label className="flex items-center gap-2.5 text-xs text-slate-800 cursor-pointer select-none">
                             <input
                               type="checkbox"
                               {...register('powerBackup')}
-                              className="w-4 h-4 text-black border-neutral-300 rounded focus:ring-black"
+                              className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
                             />
-                            <span>100% Full DG Power Backup Included</span>
+                            <span className="font-medium">100% Full DG Power Backup Included</span>
                           </label>
 
-                          <label className="flex items-center gap-2 text-xs font-sans text-neutral-800 cursor-pointer select-none">
+                          <label className="flex items-center gap-2.5 text-xs text-slate-800 cursor-pointer select-none">
                             <input
                               type="checkbox"
                               {...register('lease')}
-                              className="w-4 h-4 text-black border-neutral-300 rounded focus:ring-black"
+                              className="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
                             />
-                            <span>Pre-Leased Commercial Asset</span>
+                            <span className="font-medium">Pre-Leased Commercial Asset</span>
                           </label>
                         </div>
                       </div>
@@ -1950,32 +2063,43 @@ export function ProjectEditorPage() {
 
                 {/* ================= SECTION 3: AMENITIES & FEATURES ================= */}
                 {currentSection === 3 && (
-                  <div className="space-y-4 pt-1">
-                    <p className="text-xs text-neutral-600 font-sans">
-                      Select all standard amenities present at the site or enter project-specific custom features. All amenity tags use modern Inter typography.
+                  <div className="space-y-6 pt-1">
+                    <p className="text-xs text-slate-500">
+                      Select all standard amenities present at the site or enter project-specific custom features for brochure and collateral generation.
                     </p>
 
-                    {/* Selected Amenities Chips (Inter Font) */}
+                    {/* Selected Amenities Chips */}
                     <div className="space-y-2">
-                      <span className="text-[12px] font-medium text-[#737373]">
-                        Selected Features ({amenitiesList.length})
-                      </span>
-                      <div className="flex flex-wrap gap-2 min-h-[40px] p-2.5 border border-[#E5E5E5] bg-[#F5F5F5] rounded-[8px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                          Selected Development Features ({amenitiesList.length})
+                        </span>
+                        {amenitiesList.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setAmenitiesList([])}
+                            className="text-[11px] text-slate-400 hover:text-rose-600 transition-colors"
+                          >
+                            Clear all
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-h-[44px] p-3 rounded-xl border border-slate-200/80 bg-slate-50/60">
                         {amenitiesList.length === 0 ? (
-                          <span className="text-[13px] text-[#737373] italic">
-                            No amenities selected yet. Click any preset chip below to add.
+                          <span className="text-xs text-slate-400 italic">
+                            No amenities selected yet. Select from the presets below or add custom features.
                           </span>
                         ) : (
                           amenitiesList.map((amenity) => (
                             <span
                               key={amenity}
-                              className="inline-flex items-center gap-1.5 px-3 py-1 text-[13px] font-medium bg-[#0A0A0A] text-white rounded-[6px]"
+                              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-slate-900 text-white rounded-lg shadow-sm"
                             >
                               <span>{amenity}</span>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveAmenity(amenity)}
-                                className="hover:text-neutral-300 focus:outline-none ml-0.5 cursor-pointer"
+                                className="hover:text-rose-300 focus:outline-none ml-0.5 cursor-pointer"
                                 title={`Remove ${amenity}`}
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -1986,12 +2110,12 @@ export function ProjectEditorPage() {
                       </div>
                     </div>
 
-                    {/* Preset Amenities Chips Grid (Inter font) */}
-                    <div className="space-y-2 pt-2">
-                      <span className="text-[12px] font-medium text-[#737373]">
+                    {/* Preset Amenities Chips Grid */}
+                    <div className="space-y-2.5 pt-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
                         Preset Real Estate Amenities
                       </span>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         {PRESET_AMENITIES.map((item) => {
                           const isSelected = amenitiesList.includes(item);
                           return (
@@ -1999,14 +2123,14 @@ export function ProjectEditorPage() {
                               key={item}
                               type="button"
                               onClick={() => toggleAmenity(item)}
-                              className={`p-2.5 text-[13px] text-left border rounded-[8px] flex items-center justify-between transition-colors cursor-pointer ${
+                              className={`p-2.5 text-xs text-left rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'border-[#0A0A0A] bg-[#FAFAFA] font-semibold text-[#0A0A0A]'
-                                  : 'border-[#E5E5E5] bg-white hover:border-[#0A0A0A] text-[#525252]'
+                                  ? 'border-emerald-600 bg-emerald-50/70 font-semibold text-emerald-950 shadow-sm'
+                                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700'
                               }`}
                             >
                               <span className="truncate">{item}</span>
-                              {isSelected && <Check className="w-3.5 h-3.5 text-[#0A0A0A] shrink-0 ml-1" />}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-1" />}
                             </button>
                           );
                         })}
@@ -2014,9 +2138,9 @@ export function ProjectEditorPage() {
                     </div>
 
                     {/* Custom Amenity Input */}
-                    <div className="space-y-1.5 pt-2 border-t border-[#E5E5E5]">
-                      <span className="text-[12px] font-medium text-[#737373]">
-                        Add Custom Feature
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Add Custom Feature / Facility
                       </span>
                       <div className="flex gap-2">
                         <input
@@ -2029,17 +2153,17 @@ export function ProjectEditorPage() {
                               handleAddCustomAmenity();
                             }
                           }}
-                          placeholder="e.g. Helipad, Concierge 24x7, Golf Simulator..."
-                          className="flex-1 p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans"
+                          placeholder="e.g. Helipad, Concierge 24x7, Golf Simulator, Cigar Lounge..."
+                          className="flex-1 p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                         />
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           onClick={handleAddCustomAmenity}
-                          className="border-black text-black uppercase tracking-wider text-xs"
+                          className="rounded-xl border-slate-300 text-slate-800 hover:bg-slate-50 text-xs font-semibold px-4"
                         >
-                          <Plus className="w-3 h-3 mr-1" />
+                          <Plus className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                           Add Feature
                         </Button>
                       </div>
@@ -2057,9 +2181,9 @@ export function ProjectEditorPage() {
                       />
                     ) : (
                       <EmptyState
-                        icon={<Image className="w-10 h-10 text-neutral-400" />}
+                        icon={<ImageIcon className="w-10 h-10 text-slate-400" />}
                         title="Save Basic Info First"
-                        description="Please complete Section 1 to initialize your project draft before uploading photos and videos."
+                        description="Please complete Section 1 to initialize your project draft before uploading photos, floor plans, and videos."
                         actionLabel="Go to Section 1"
                         onAction={() => setCurrentSection(1)}
                       />
@@ -2068,7 +2192,7 @@ export function ProjectEditorPage() {
                 )}
 
                 {/* SECTION FOOTER ACTIONS (BACK / SAVE & CONTINUE) */}
-                <div className="flex items-center justify-between pt-5 border-t border-neutral-200">
+                <div className="flex items-center justify-between pt-6 border-t border-slate-100">
                   <Button
                     type="button"
                     variant="outline"
@@ -2076,12 +2200,12 @@ export function ProjectEditorPage() {
                     disabled={currentSection === 1}
                     onClick={() => handleNavigateSection(currentSection - 1)}
                     leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
-                    className="border-neutral-300 text-black text-xs uppercase tracking-wider font-semibold"
+                    className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold"
                   >
-                    Back
+                    Previous Section
                   </Button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     {currentSection < 4 ? (
                       <Button
                         type="button"
@@ -2090,7 +2214,7 @@ export function ProjectEditorPage() {
                         isLoading={isSavingSection}
                         onClick={() => handleSaveSection(currentSection)}
                         rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-                        className="bg-black text-white hover:bg-neutral-800 text-xs uppercase tracking-wider font-semibold"
+                        className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm"
                       >
                         Save &amp; Continue
                       </Button>
@@ -2101,23 +2225,23 @@ export function ProjectEditorPage() {
                         size="sm"
                         disabled={isSubmittingFinal}
                         onClick={handleFinishAndMarkAsReady}
-                        className={`text-xs uppercase tracking-wider font-semibold ${
+                        className={`rounded-xl text-xs font-semibold transition-all ${
                           isReady
                             ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                             : isSubmittingFinal
-                            ? 'bg-neutral-800 text-white cursor-wait'
-                            : 'bg-black text-white hover:bg-neutral-800'
+                            ? 'bg-slate-700 text-white cursor-wait'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
                         }`}
                       >
                         {isReady ? (
                           <>
                             <Check className="w-3.5 h-3.5 mr-1.5" />
-                            Ready!
+                            Ready in Catalog
                           </>
                         ) : isSubmittingFinal ? (
                           <>
                             <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                            Saving &amp; Validating...
+                            Validating &amp; Saving...
                           </>
                         ) : (
                           <>
@@ -2135,14 +2259,55 @@ export function ProjectEditorPage() {
         </TabsContent>
 
         {/* ================= TAB 2: INVENTORY & CONFIGURED UNITS ================= */}
-        <TabsContent value="units" className="pt-2 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+        <TabsContent value="units" className="pt-4 space-y-6">
+          {/* Inventory KPI Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Total Configured
+              </span>
+              <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                {unitStats.total}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Towers &amp; residences</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">
+                Available for Sale
+              </span>
+              <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
+                {unitStats.available}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Active marketing inventory</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+                Reserved / Blocked
+              </span>
+              <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">
+                {unitStats.blocked}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Token / EOI locked</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Sold Out
+              </span>
+              <div className="text-2xl font-bold text-slate-700 mt-1 tabular-nums">
+                {unitStats.sold}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">Executed registrations</p>
+            </div>
+          </div>
+
+          {/* Table Header & Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-2xl border border-slate-200/80 p-4 shadow-sm">
             <div>
-              <h3 className="text-base font-bold uppercase tracking-tight text-black font-sans">
+              <h3 className="text-base font-bold text-slate-900">
                 Project Inventory &amp; Configured Units ({units.length})
               </h3>
-              <p className="text-xs text-neutral-600 font-sans">
-                Manage specific apartments, villas, or commercial units with real carpet areas and availability logs.
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage specific apartments, villas, commercial suites, carpet areas, and live availability logs.
               </p>
             </div>
 
@@ -2150,108 +2315,149 @@ export function ProjectEditorPage() {
               type="button"
               variant="primary"
               size="sm"
-              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              leftIcon={<Plus className="w-4 h-4" />}
               onClick={handleOpenAddUnitModal}
-              className="bg-black text-white text-xs uppercase tracking-wider"
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm self-start sm:self-auto"
             >
               Add Property Unit
             </Button>
           </div>
 
           {units.length === 0 ? (
-            <EmptyState
-              icon={<Layers className="w-8 h-8 text-neutral-400" />}
-              title="No Units Configured"
-              description="Add individual apartments, plots, or commercial suites to track availability and generate unit-specific collateral."
-              actionLabel="Add First Unit"
-              onAction={handleOpenAddUnitModal}
-            />
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-10 shadow-sm">
+              <EmptyState
+                icon={<Layers className="w-10 h-10 text-slate-400" />}
+                title="No Units Configured in Inventory"
+                description="Add individual apartments, plots, or commercial suites to track real-time availability and generate unit-specific marketing collateral."
+                actionLabel="Add First Unit"
+                onAction={handleOpenAddUnitModal}
+              />
+            </div>
           ) : (
-            <div className="border border-neutral-200 overflow-x-auto bg-white">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E5E5E5] bg-[#F5F5F5] text-[12px] font-semibold text-[#525252]">
-                    <th className="p-3.5">Unit Identifier</th>
-                    <th className="p-3.5">Typology</th>
-                    <th className="p-3.5">Carpet Area</th>
-                    <th className="p-3.5">Price Display</th>
-                    <th className="p-3.5">Status</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5E5E5]">
-                  {units.map((unit) => (
-                    <tr key={unit.id} className="hover:bg-[#F5F5F5] transition-colors h-12">
-                      <td className="p-3.5 font-semibold text-[#0A0A0A]">{unit.unitNumber}</td>
-                      <td className="p-3.5 text-[#525252]">{unit.unitType}</td>
-                      <td className="p-3.5 text-[#525252] tabular-nums">{unit.carpetAreaSqFt} sq ft</td>
-                      <td className="p-3.5 font-medium text-[#0A0A0A] tabular-nums">{unit.priceDisplay || `₹ ${(unit.price / 10000000).toFixed(2)} Cr`}</td>
-                      <td className="p-3.5">
-                        <StatusBadge
-                          status={unit.status === 'AVAILABLE' ? 'ready_for_review' : 'draft'}
-                        />
-                      </td>
-                      <td className="p-3 text-right space-x-2">
-                        {unit.changeHistory && unit.changeHistory.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedUnitForHistory(unit)}
-                            className="p-1 text-neutral-500 hover:text-black"
-                            title="View Change History"
-                          >
-                            <History className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditUnitModal(unit)}
-                          className="p-1 text-neutral-500 hover:text-black"
-                          title="Edit Unit"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveUnit(unit.id)}
-                          className="p-1 text-neutral-500 hover:text-red-600"
-                          title="Delete Unit"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
+            <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3.5 px-4">Unit Identifier</th>
+                      <th className="py-3.5 px-4">Typology</th>
+                      <th className="py-3.5 px-4">Carpet Area</th>
+                      <th className="py-3.5 px-4">Price Display</th>
+                      <th className="py-3.5 px-4">Status</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {units.map((unit) => {
+                      const isAvailable = unit.status === 'AVAILABLE';
+                      const isBlocked = unit.status === 'BLOCKED';
+                      const isSold = unit.status === 'SOLD';
+
+                      return (
+                        <tr key={unit.id} className="hover:bg-slate-50/70 transition-colors h-14">
+                          <td className="py-3 px-4 font-bold text-slate-900">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                              <span>{unit.unitNumber}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 font-medium">
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px]">
+                              {unit.unitType}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 tabular-nums font-medium">
+                            {unit.carpetAreaSqFt} sq ft
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-slate-900 tabular-nums">
+                            {unit.priceDisplay || `₹ ${(unit.price / 10000000).toFixed(2)} Cr`}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                                isAvailable
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : isBlocked
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                  : isSold
+                                  ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}
+                            >
+                              {unit.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            {unit.changeHistory && unit.changeHistory.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedUnitForHistory(unit)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                title="View Price &amp; Status Audit History"
+                              >
+                                <History className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditUnitModal(unit)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                              title="Edit Unit Specifications"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUnit(unit.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete Unit"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* UNIT CHANGE HISTORY MODAL */}
+          {/* UNIT CHANGE HISTORY AUDIT MODAL */}
           <Modal open={Boolean(selectedUnitForHistory)} onOpenChange={(open) => !open && setSelectedUnitForHistory(null)}>
-            <ModalContent>
+            <ModalContent className="sm:max-w-md rounded-2xl">
               <ModalHeader>
-                <ModalTitle>Price &amp; Availability Audit History</ModalTitle>
-                <ModalDescription>
+                <ModalTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                  <History className="w-5 h-5 text-emerald-600" />
+                  Price &amp; Availability Audit History
+                </ModalTitle>
+                <ModalDescription className="text-xs text-slate-500">
                   Recorded audit trail of price changes and status progressions for {selectedUnitForHistory?.unitNumber}.
                 </ModalDescription>
               </ModalHeader>
               <div className="space-y-3 py-2 max-h-80 overflow-y-auto">
                 {selectedUnitForHistory?.changeHistory?.map((h, i) => (
-                  <div key={i} className="p-2.5 border border-neutral-200 bg-neutral-50 text-xs space-y-1 font-sans">
-                    <div className="flex justify-between font-semibold">
-                      <span className="uppercase">{h.field}</span>
-                      <span className="text-neutral-500">{new Date(h.timestamp).toLocaleDateString()}</span>
+                  <div key={i} className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/70 text-xs space-y-1">
+                    <div className="flex justify-between font-bold text-slate-700">
+                      <span className="uppercase tracking-wider text-[11px] text-slate-500">{h.field}</span>
+                      <span className="text-slate-400 font-normal">{new Date(h.timestamp).toLocaleDateString()}</span>
                     </div>
-                    <div className="text-neutral-700">
-                      <span className="line-through text-red-600 mr-2">{String(h.oldValue)}</span>
-                      <span className="font-bold text-green-700">&rarr; {String(h.newValue)}</span>
+                    <div className="text-slate-800">
+                      <span className="line-through text-rose-600 mr-2">{String(h.oldValue)}</span>
+                      <span className="font-bold text-emerald-700">&rarr; {String(h.newValue)}</span>
                     </div>
-                    {h.reason && <p className="text-[11px] text-neutral-500 italic font-sans">{h.reason}</p>}
+                    {h.reason && <p className="text-[11px] text-slate-500 italic">{h.reason}</p>}
                   </div>
                 ))}
               </div>
               <ModalFooter>
-                <Button variant="secondary" size="sm" onClick={() => setSelectedUnitForHistory(null)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedUnitForHistory(null)}
+                  className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold"
+                >
                   Close
                 </Button>
               </ModalFooter>
@@ -2260,12 +2466,13 @@ export function ProjectEditorPage() {
 
           {/* ADD / EDIT UNIT MODAL */}
           <Modal open={isUnitModalOpen} onOpenChange={setIsUnitModalOpen}>
-            <ModalContent>
+            <ModalContent className="sm:max-w-lg rounded-2xl">
               <ModalHeader>
-                <ModalTitle>
+                <ModalTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
+                  <Building2 className="w-5 h-5 text-emerald-600" />
                   {editingUnitId ? 'Edit Unit Specification' : 'Add Property Unit'}
                 </ModalTitle>
-                <ModalDescription>
+                <ModalDescription className="text-xs text-slate-500">
                   {editingUnitId
                     ? 'Modify carpet area, status, and pricing for this unit. Changes are logged in audit history.'
                     : 'Add a real inventory unit with pricing and area specifications.'}
@@ -2273,8 +2480,8 @@ export function ProjectEditorPage() {
               </ModalHeader>
               <div className="space-y-4 py-2">
                 <Input
-                  label="Unit Number / Label *"
-                  placeholder="e.g. Tower A - 1402 or Plot #12"
+                  label="Unit Number / Identifier *"
+                  placeholder="e.g. Tower A - 1402 or Villa #12"
                   value={unitName}
                   error={unitErrors.name}
                   onChange={(e) => {
@@ -2314,13 +2521,13 @@ export function ProjectEditorPage() {
                     }}
                   />
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1 font-sans">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
                       Availability Status *
                     </label>
                     <select
                       value={unitStatus}
                       onChange={(e) => setUnitStatus(e.target.value as 'AVAILABLE' | 'BLOCKED' | 'SOLD')}
-                      className="w-full p-2 text-xs border border-neutral-300 bg-white focus:outline-none focus:border-black font-sans font-medium"
+                      className="w-full p-2.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-medium"
                     >
                       <option value="AVAILABLE">AVAILABLE</option>
                       <option value="BLOCKED">BLOCKED</option>
@@ -2337,6 +2544,7 @@ export function ProjectEditorPage() {
                     setIsUnitModalOpen(false);
                     setEditingUnitId(null);
                   }}
+                  className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold"
                 >
                   Cancel
                 </Button>
@@ -2345,6 +2553,7 @@ export function ProjectEditorPage() {
                   size="sm"
                   isLoading={createUnitMutation.isPending || updateUnitMutation.isPending}
                   onClick={handleSaveUnit}
+                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm"
                 >
                   {editingUnitId ? 'Update Unit' : 'Save Unit to Database'}
                 </Button>
@@ -2356,18 +2565,18 @@ export function ProjectEditorPage() {
 
       {/* Version Conflict Modal (HTTP 409) */}
       <Modal open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
-        <ModalContent>
+        <ModalContent className="sm:max-w-md rounded-2xl">
           <ModalHeader>
-            <ModalTitle className="flex items-center gap-2 text-base font-bold text-black font-sans uppercase">
+            <ModalTitle className="flex items-center gap-2 text-base font-bold text-slate-900">
               <AlertCircle className="w-5 h-5 text-amber-600" />
               Version Conflict Detected
             </ModalTitle>
-            <ModalDescription className="text-xs text-neutral-600 font-sans">
+            <ModalDescription className="text-xs text-slate-500">
               {conflictMessage ||
                 'This project was modified in another session. Please choose whether to reload the latest server data or keep your current local edits.'}
             </ModalDescription>
           </ModalHeader>
-          <div className="py-2 text-xs text-neutral-700 font-sans space-y-2">
+          <div className="py-2 text-xs text-slate-600 space-y-2">
             <p>
               Your local changes have been preserved in state and cannot be overwritten unless you confirm.
             </p>
@@ -2384,13 +2593,14 @@ export function ProjectEditorPage() {
                   type: 'info',
                 });
               }}
+              className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold"
             >
               Keep My Changes
             </Button>
             <Button
               variant="primary"
               size="sm"
-              className="bg-black text-white hover:bg-neutral-800"
+              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm"
               onClick={async () => {
                 setConflictModalOpen(false);
                 await refetchProject();

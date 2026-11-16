@@ -6,42 +6,112 @@
 
 @layer base {
   :root {
-    /* Strict Design Tokens: Clean White-and-Black Monochrome */
-    --background: #FAFAFA;
-    --foreground: #0A0A0A;
+    /* Commercial SaaS Semantic Design Tokens - Linear & Stripe Inspired Black & White Theme */
+    --color-primary: #09090B;
+    --color-primary-hover: #27272A;
+    --color-primary-active: #18181B;
+    --color-primary-soft: #F4F4F5;
+    --color-on-primary: #FFFFFF;
 
-    --surface: #FFFFFF;
-    --surface-hover: #F5F5F5;
-    --surface-muted: #F5F5F5;
+    --color-ink: #09090B;
+    --color-ink-muted: #52525B;
+    --color-ink-subtle: #71717A;
 
-    --border: #E5E5E5;
-    --border-subtle: #F0F0F0;
-    --border-dark: #0A0A0A;
+    --color-bg: #FAFAFA;
+    --color-surface: #FFFFFF;
+    --color-surface-muted: #F4F4F5;
+    --color-border: #E4E4E7;
+    --color-border-control: #D4D4D8;
+    --color-border-strong: #A1A1AA;
+    --color-border-divider: #E4E4E7;
 
-    --text-primary: #0A0A0A;
-    --text-secondary: #525252;
-    --text-muted: #737373;
-    --text-inverse: #FFFFFF;
+    --color-success: #15803D;
+    --color-success-text: #15803D;
+    --color-success-icon: #16A34A;
+    --color-success-soft: #F0FDF4;
 
-    /* Status Colors */
-    --status-success: #15803D;
-    --status-success-bg: #F0FDF4;
-    --status-warning: #B45309;
-    --status-warning-bg: #FFFBEB;
-    --status-danger: #B91C1C;
-    --status-danger-bg: #FEF2F2;
-    --status-neutral: #525252;
-    --status-neutral-bg: #F5F5F5;
+    --color-warning: #B45309;
+    --color-warning-text: #B45309;
+    --color-warning-icon: #D97706;
+    --color-warning-soft: #FFFBEB;
 
+    --color-danger: #B91C1C;
+    --color-danger-text: #B91C1C;
+    --color-danger-icon: #DC2626;
+    --color-danger-soft: #FEF2F2;
+
+    --color-info: #09090B;
+    --color-info-text: #09090B;
+    --color-info-icon: #27272A;
+    --color-info-soft: #F4F4F5;
+
+    --radius-control: 6px;
     --radius-card: 10px;
-    --radius-element: 8px;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.06);
-    --shadow-dialog: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --radius-modal: 12px;
+    --radius-pill: 9999px;
+
+    /* Legacy compatibility tokens mapped to new palette */
+    --background: var(--color-bg);
+    --foreground: var(--color-ink);
+
+    --surface: var(--color-surface);
+    --surface-hover: var(--color-surface-muted);
+    --surface-muted: var(--color-surface-muted);
+
+    --border: var(--color-border);
+    --border-subtle: #F4F4F5;
+    --border-dark: var(--color-ink);
+
+    --text-primary: var(--color-ink);
+    --text-secondary: var(--color-ink-muted);
+    --text-muted: var(--color-ink-subtle);
+    --text-inverse: var(--color-on-primary);
+
+    /* Legacy Status Colors */
+    --status-success: var(--color-success);
+    --status-success-bg: var(--color-success-soft);
+    --status-warning: var(--color-warning);
+    --status-warning-bg: var(--color-warning-soft);
+    --status-danger: var(--color-danger);
+    --status-danger-bg: var(--color-danger-soft);
+    --status-neutral: var(--color-ink-muted);
+    --status-neutral-bg: var(--color-surface-muted);
+
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+    --shadow-dialog: 0 16px 32px -4px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Optional Dark Mode Token Overrides */
+  [data-theme='dark'],
+  .dark {
+    --color-primary: #6366F1;
+    --color-primary-hover: #4F46E5;
+    --color-primary-soft: #1E1B4B;
+    --color-on-primary: #FFFFFF;
+
+    --color-ink: #F8FAFC;
+    --color-ink-muted: #94A3B8;
+    --color-ink-subtle: #64748B;
+
+    --color-bg: #0B0F19;
+    --color-surface: #111827;
+    --color-surface-muted: #1F2937;
+    --color-border: #1F2937;
+    --color-border-strong: #374151;
+
+    --color-success: #22C55E;
+    --color-success-soft: #052E16;
+    --color-warning: #F59E0B;
+    --color-warning-soft: #451A03;
+    --color-danger: #EF4444;
+    --color-danger-soft: #450A0A;
+    --color-info: #38BDF8;
+    --color-info-soft: #082F49;
   }
 
   * {
     box-sizing: border-box;
-    border-color: var(--border);
+    border-color: var(--color-border);
   }
 
   html,
@@ -51,8 +121,8 @@
     width: 100%;
     min-height: 100%;
     overflow-x: hidden;
-    background-color: #FAFAFA;
-    color: #0A0A0A;
+    background-color: var(--color-bg, #F8FAFC);
+    color: var(--color-ink, #0F172A);
     font-family: 'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px;
     line-height: 1.5;
@@ -62,8 +132,42 @@
 
   /* Accessibility & Visible Focus */
   :focus-visible {
-    outline: 2px solid #0A0A0A;
+    outline: 2px solid var(--color-primary, #09090B);
     outline-offset: 2px;
+  }
+
+  /* Type Scale Utility Classes */
+  .text-title-page {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+
+  .text-title-section,
+  .text-section {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .text-body-default {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .text-small-text {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+
+  .text-caption-text,
+  .text-meta {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    color: var(--color-ink-muted, #52525B);
   }
 
   /* Numbers, prices, dates, times tabular alignment */

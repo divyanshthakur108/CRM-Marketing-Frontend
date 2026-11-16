@@ -1,6 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from '@mui/material/styles';
+import { realCrmTheme } from './theme';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthLayout } from './layouts/AuthLayout';
 import { AppShell } from './layouts/AppShell';
@@ -148,100 +150,102 @@ export default function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserRouter>
-          <Suspense fallback={<PageFallback />}>
-            <Routes>
-              {/* Public SaaS Landing Page */}
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/app" element={<RootRedirect />} />
+      <ThemeProvider theme={realCrmTheme}>
+        <ToastProvider>
+          <BrowserRouter>
+            <Suspense fallback={<PageFallback />}>
+              <Routes>
+                {/* Public SaaS Landing Page */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/app" element={<RootRedirect />} />
 
-              {/* Public Auth Routes */}
-              <Route element={<AuthLayout />}>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
-                <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
-                <Route path="/accept-invite/*" element={<AcceptInvitePage />} />
-                <Route path="/invitations/:token/accept" element={<AcceptInvitePage />} />
-                <Route path="/invitations/*" element={<AcceptInvitePage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-              </Route>
+                {/* Public Auth Routes */}
+                <Route element={<AuthLayout />}>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
+                  <Route path="/accept-invite/*" element={<AcceptInvitePage />} />
+                  <Route path="/invitations/:token/accept" element={<AcceptInvitePage />} />
+                  <Route path="/invitations/*" element={<AcceptInvitePage />} />
+                  <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
+                </Route>
 
-              {/* Client Onboarding Route (Client Only, Stepper 1-4 & Final) */}
-              <Route
-                path="/onboarding"
-                element={
-                  <OnboardingRoute>
-                    <OnboardingPage />
-                  </OnboardingRoute>
-                }
-              />
+                {/* Client Onboarding Route (Client Only, Stepper 1-4 & Final) */}
+                <Route
+                  path="/onboarding"
+                  element={
+                    <OnboardingRoute>
+                      <OnboardingPage />
+                    </OnboardingRoute>
+                  }
+                />
 
-              {/* Platform Admin Console Routes (platform_admin Only) */}
-              <Route
-                element={
-                  <AdminRoute>
-                    <AppShell />
-                  </AdminRoute>
-                }
-              >
-                <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
-                <Route path="/admin/video-lab" element={<AdminVideoLabPage />} />
-                <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
-              </Route>
+                {/* Platform Admin Console Routes (platform_admin Only) */}
+                <Route
+                  element={
+                    <AdminRoute>
+                      <AppShell />
+                    </AdminRoute>
+                  }
+                >
+                  <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
+                  <Route path="/admin/video-lab" element={<AdminVideoLabPage />} />
+                  <Route path="/admin" element={<Navigate to="/admin/organizations" replace />} />
+                </Route>
 
-              {/* Protected Workspace Console Routes */}
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppShell />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
-                <Route path="/analytics" element={<Navigate to="/dashboard/analytics" replace />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/catalog" element={<Navigate to="/projects" replace />} />
-                <Route path="/projects/new" element={<ProjectEditorPage />} />
-                <Route path="/projects/:id" element={<ProjectEditorPage />} />
-                <Route path="/projects/:id/edit" element={<ProjectEditorPage />} />
-                <Route path="/properties" element={<Navigate to="/projects" replace />} />
-                <Route path="/assets" element={<MediaLibraryPage />} />
-                <Route path="/media" element={<Navigate to="/assets" replace />} />
-                <Route path="/studio" element={<CreativeStudioPage />} />
-                <Route path="/creative-studio" element={<Navigate to="/studio" replace />} />
-                <Route path="/creation" element={<Navigate to="/studio" replace />} />
-                <Route path="/captions" element={<CaptionStudioPage />} />
-                <Route path="/calendar" element={<CalendarPage />} />
-                <Route path="/planner" element={<Navigate to="/calendar" replace />} />
-                <Route path="/plan-review" element={<PlanReviewPage />} />
-                <Route path="/approvals" element={<ApprovalsQueuePage />} />
-                <Route path="/publishing" element={<PublishingLogPage />} />
-                <Route path="/connections" element={<MetaConnectionsPage />} />
-                <Route path="/campaigns" element={<CampaignsPage />} />
-                <Route path="/ads" element={<Navigate to="/campaigns" replace />} />
-                <Route path="/branding" element={<BrandProfilePage />} />
-                <Route path="/audience" element={<AudiencePage />} />
-                <Route path="/budget" element={<BudgetPage />} />
-                <Route path="/leads" element={<LeadsPage />} />
-                <Route path="/crm" element={<Navigate to="/leads" replace />} />
-                <Route path="/conversations" element={<ConversationsPage />} />
-                <Route path="/whatsapp" element={<ConversationsPage />} />
-                <Route path="/appointments" element={<AppointmentsPage />} />
-                <Route path="/team" element={<TeamPage />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/profile" element={<Navigate to="/settings" replace />} />
-              </Route>
+                {/* Protected Workspace Console Routes */}
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppShell />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
+                  <Route path="/analytics" element={<Navigate to="/dashboard/analytics" replace />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/catalog" element={<Navigate to="/projects" replace />} />
+                  <Route path="/projects/new" element={<ProjectEditorPage />} />
+                  <Route path="/projects/:id" element={<ProjectEditorPage />} />
+                  <Route path="/projects/:id/edit" element={<ProjectEditorPage />} />
+                  <Route path="/properties" element={<Navigate to="/projects" replace />} />
+                  <Route path="/assets" element={<MediaLibraryPage />} />
+                  <Route path="/media" element={<Navigate to="/assets" replace />} />
+                  <Route path="/studio" element={<CreativeStudioPage />} />
+                  <Route path="/creative-studio" element={<Navigate to="/studio" replace />} />
+                  <Route path="/creation" element={<Navigate to="/studio" replace />} />
+                  <Route path="/captions" element={<CaptionStudioPage />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/planner" element={<Navigate to="/calendar" replace />} />
+                  <Route path="/plan-review" element={<PlanReviewPage />} />
+                  <Route path="/approvals" element={<ApprovalsQueuePage />} />
+                  <Route path="/publishing" element={<PublishingLogPage />} />
+                  <Route path="/connections" element={<MetaConnectionsPage />} />
+                  <Route path="/campaigns" element={<CampaignsPage />} />
+                  <Route path="/ads" element={<Navigate to="/campaigns" replace />} />
+                  <Route path="/branding" element={<BrandProfilePage />} />
+                  <Route path="/audience" element={<AudiencePage />} />
+                  <Route path="/budget" element={<BudgetPage />} />
+                  <Route path="/leads" element={<LeadsPage />} />
+                  <Route path="/crm" element={<Navigate to="/leads" replace />} />
+                  <Route path="/conversations" element={<ConversationsPage />} />
+                  <Route path="/whatsapp" element={<ConversationsPage />} />
+                  <Route path="/appointments" element={<AppointmentsPage />} />
+                  <Route path="/team" element={<TeamPage />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/profile" element={<Navigate to="/settings" replace />} />
+                </Route>
 
-              {/* 404 Catch-All Route */}
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
-      </ToastProvider>
+                {/* 404 Catch-All Route */}
+                <Route path="*" element={<NotFoundPage />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </ToastProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

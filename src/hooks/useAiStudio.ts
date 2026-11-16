@@ -163,16 +163,18 @@ export function useGenerateStudioImages() {
       projectId,
       targetCount = 15,
       stylePreset = 'HERITAGE_LUXURY',
-      mode = 'AI_IMAGE',
+      mode = 'ENHANCED_CROPS',
+      isAsync = false,
     }: {
       projectId: string;
       targetCount?: number;
       stylePreset?: 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI';
       mode?: 'AI_IMAGE' | 'ENHANCED_CROPS';
+      isAsync?: boolean;
     }): Promise<AiStudioBatch> => {
       const res = await api.post<{ success: boolean; data: AiStudioBatch }>(
         `/ai/projects/${projectId}/studio-generate-images`,
-        { targetCount, stylePreset, mode }
+        { targetCount, stylePreset, mode, isAsync }
       );
       return res.data.data;
     },
@@ -291,10 +293,10 @@ export function useUploadStudioPhotos() {
     }: {
       projectId: string;
       files: File[];
-    }): Promise<any[]> => {
+    }): Promise<unknown[]> => {
       const formData = new FormData();
       files.forEach((f) => formData.append('files', f));
-      const res = await api.post<{ success: boolean; data: any[] }>(
+      const res = await api.post<{ success: boolean; data: unknown[] }>(
         `/ai/projects/${projectId}/studio-upload-photos`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
@@ -341,8 +343,8 @@ export function useSaveStudioImageToMedia() {
     }: {
       batchId: string;
       imageId: string;
-    }): Promise<any> => {
-      const res = await api.post<{ success: boolean; data: any }>(
+    }): Promise<Record<string, unknown>> => {
+      const res = await api.post<{ success: boolean; data: Record<string, unknown> }>(
         `/ai/studio-batches/${batchId}/images/${imageId}/save-to-media`
       );
       return res.data.data;

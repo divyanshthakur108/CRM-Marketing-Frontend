@@ -36,11 +36,13 @@ import {
   AlertTriangle,
   RotateCw,
   X,
+  CheckCircle2,
+  CalendarDays,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // -----------------------------------------------------------------------------
-// 1. HELPERS & FORMATTERS (Inter & Tabular-nums everywhere)
+// 1. HELPERS & FORMATTERS
 // -----------------------------------------------------------------------------
 
 function formatDisplayDate(dateStr: string): string {
@@ -85,29 +87,29 @@ function getPlatformDetails(format: FrontendCalendarItem['format']) {
     case 'INSTAGRAM_REEL':
       return {
         label: 'Instagram Reel',
+        badgeColor: 'bg-[#EDE9FE] text-[#8B5CF6] border-[#8B5CF6]/20',
         Icon: InstagramIcon,
       };
     case 'FACEBOOK_CAROUSEL':
       return {
         label: 'Facebook Post',
+        badgeColor: 'bg-[#EFF6FF] text-[#2563EB] border-[#2563EB]/20',
         Icon: FacebookIcon,
       };
     case 'WHATSAPP_BROADCAST':
       return {
         label: 'WhatsApp Broadcast',
+        badgeColor: 'bg-[#E8F7F1] text-[#10B981] border-[#10B981]/20',
         Icon: WhatsAppIcon,
       };
     default:
       return {
         label: 'Facebook Post',
+        badgeColor: 'bg-slate-100 text-[#64748B] border-slate-200',
         Icon: FacebookIcon,
       };
   }
 }
-
-// -----------------------------------------------------------------------------
-// 2. CALENDAR CARD COMPONENT (Clean & Professional Monochrome)
-// -----------------------------------------------------------------------------
 
 function formatCardTime(timeStr?: string): string {
   if (!timeStr) return '18:00';
@@ -122,6 +124,10 @@ function formatCardTime(timeStr?: string): string {
   }
   return timeStr;
 }
+
+// -----------------------------------------------------------------------------
+// 2. CALENDAR CARD COMPONENT (MUI Minimal Style)
+// -----------------------------------------------------------------------------
 
 interface DraggableItemCardProps {
   item: FrontendCalendarItem;
@@ -161,15 +167,15 @@ function DraggableItemCard({
         }
       }}
       className={cn(
-        'group relative flex flex-col justify-between w-full min-w-0 rounded-[10px] p-1.5 text-left select-none cursor-pointer',
+        'group relative flex flex-col justify-between w-full min-w-0 rounded-xl p-2 text-left select-none cursor-pointer',
         'transition-all duration-150 ease-in-out',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A] focus-visible:ring-offset-1',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] focus-visible:ring-offset-1',
         isSelected
-          ? 'bg-white border-[1.5px] border-[#0A0A0A] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
-          : 'bg-white border border-[#E5E5E5] shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:border-[#A3A3A3]'
+          ? 'bg-white border-2 border-[#10B981] shadow-md ring-1 ring-[#10B981]/20'
+          : 'bg-white border border-[#EDF0F2] shadow-[0_1px_3px_0_rgba(145,158,171,0.1)] hover:border-slate-300 hover:shadow-md'
       )}
     >
-      {/* Row 1: time (e.g. 18:00) on the left, small status dot on the right, drag handle appears only on hover/focus (always visible below 1024px) */}
+      {/* Row 1: Drag handle, Time, Project Monogram & Status dot */}
       <div className="flex items-center justify-between w-full min-w-0 gap-1">
         <div className="flex items-center gap-1 min-w-0">
           <button
@@ -178,11 +184,11 @@ function DraggableItemCard({
             type="button"
             tabIndex={-1}
             aria-label="Drag to reschedule"
-            className="w-3.5 h-3.5 flex items-center justify-center text-[#737373] hover:text-[#0A0A0A] cursor-grab active:cursor-grabbing shrink-0 transition-opacity duration-150 block lg:hidden lg:group-hover:flex lg:group-focus-within:flex focus-visible:flex"
+            className="w-4 h-4 flex items-center justify-center text-[#94A3B8] hover:text-[#1F2937] cursor-grab active:cursor-grabbing shrink-0 transition-opacity block lg:hidden lg:group-hover:flex lg:group-focus-within:flex focus-visible:flex"
           >
-            <GripVertical className="w-3 h-3" />
+            <GripVertical className="w-3.5 h-3.5" />
           </button>
-          <span className="tabular-nums text-[12px] font-medium text-[#525252] shrink-0">
+          <span className="tabular-nums text-[11px] font-bold text-[#1F2937] shrink-0">
             {formatCardTime(item.time)}
           </span>
         </div>
@@ -191,52 +197,52 @@ function DraggableItemCard({
           {showProjectInitial && (
             <span
               title={`Project: ${item.projectName}`}
-              className="w-5 h-5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] text-[12px] font-semibold text-[#525252] flex items-center justify-center leading-none"
+              className="w-4 h-4 rounded-full bg-[#E8F7F1] border border-[#10B981]/30 text-[10px] font-bold text-[#10B981] flex items-center justify-center leading-none"
             >
               {item.projectName ? item.projectName.charAt(0).toUpperCase() : 'P'}
             </span>
           )}
 
-          {/* Status dot: Draft grey, Approved black, Scheduled outline, Paused yellow/neutral */}
+          {/* Status Dot */}
           <span
             title={`Status: ${item.status || 'Draft'}`}
             className={cn(
               'w-2 h-2 rounded-full shrink-0 transition-colors',
-              item.status === 'Approved' && 'bg-[#0A0A0A]',
-              item.status === 'Scheduled' && 'border border-[#0A0A0A] bg-transparent',
-              (item.status === 'Draft' || !item.status) && 'bg-[#A3A3A3]',
-              item.status === 'Paused' && 'border border-[#737373] bg-[#E5E5E5]'
+              item.status === 'Approved' && 'bg-[#10B981]',
+              item.status === 'Scheduled' && 'bg-[#3B82F6]',
+              item.status === 'Paused' && 'bg-[#D97706]',
+              (item.status === 'Draft' || !item.status) && 'bg-[#94A3B8]'
             )}
           />
         </div>
       </div>
 
-      {/* Row 2: Title, max 2 lines, full text in tooltip */}
+      {/* Row 2: Title */}
       <p
         title={item.title}
-        className="line-clamp-2 text-[14px] font-medium text-[#0A0A0A] leading-snug my-1 min-w-0 break-normal [overflow-wrap:normal] overflow-hidden"
+        className="line-clamp-2 text-xs font-semibold text-[#1F2937] leading-snug my-1.5 min-w-0"
       >
         {item.title}
       </p>
 
-      {/* Row 3: Platform icon + full label if it fits, otherwise icon only with tooltip; "Paid" badge = black filled, "Organic" = outlined */}
-      <div className="flex items-center justify-between gap-1 w-full min-w-0 pt-1 border-t border-[#F0F0F0]">
+      {/* Row 3: Platform icon + Paid/Organic tag */}
+      <div className="flex items-center justify-between gap-1 w-full min-w-0 pt-1.5 border-t border-[#EDF0F2]">
         <div
           title={platformLabel}
-          className="flex items-center space-x-1 min-w-0 text-[#525252]"
+          className="flex items-center space-x-1 min-w-0 text-[#64748B]"
         >
-          <Icon className="w-3.5 h-3.5 shrink-0 text-[#0A0A0A]" />
-          <span className="text-[12px] font-medium truncate hidden 2xl:inline">
+          <Icon className="w-3.5 h-3.5 shrink-0 text-[#1F2937]" />
+          <span className="text-[11px] font-medium truncate hidden 2xl:inline">
             {platformLabel}
           </span>
         </div>
 
         <span
           className={cn(
-            'text-[12px] font-medium px-1.5 py-0.5 rounded-[4px] shrink-0 tracking-tight transition-colors',
+            'text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 transition-colors',
             item.isPaid
-              ? 'bg-[#0A0A0A] text-white'
-              : 'border border-[#E5E5E5] text-[#525252] bg-transparent'
+              ? 'bg-[#E8F7F1] text-[#10B981] border border-[#10B981]/20'
+              : 'border border-[#EDF0F2] text-[#64748B] bg-slate-50'
           )}
         >
           {item.isPaid ? 'Paid' : 'Organic'}
@@ -288,35 +294,35 @@ function DroppableDay({
     <div
       ref={setNodeRef}
       className={cn(
-        'min-h-[140px] border border-[#E5E5E5] rounded-[10px] p-1 sm:p-1.5 flex flex-col justify-between transition-colors duration-150',
-        isWeekend ? 'bg-[#FAFAFA]' : 'bg-white',
-        !isCurrentMonth && 'opacity-40 bg-[#F9F9F9]',
-        isToday && 'ring-1 ring-[#0A0A0A]',
-        isOver && 'bg-[#F5F5F5] ring-2 ring-[#0A0A0A]'
+        'min-h-[140px] border border-[#EDF0F2] rounded-xl p-1.5 sm:p-2 flex flex-col justify-between transition-all duration-150',
+        isWeekend ? 'bg-slate-50/50' : 'bg-white',
+        !isCurrentMonth && 'opacity-40 bg-slate-50/30',
+        isToday && 'border-[#10B981] bg-[#E8F7F1]/20 shadow-xs ring-1 ring-[#10B981]/30',
+        isOver && 'bg-[#E8F7F1]/40 border-[#10B981] ring-2 ring-[#10B981] shadow-md'
       )}
     >
-      {/* Day Cell Header: date number top left, item count on right */}
+      {/* Day Cell Header: date number and count badge */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center">
           {isToday ? (
-            <span className="w-6 h-6 rounded-full bg-[#0A0A0A] text-white flex items-center justify-center font-medium tabular-nums text-[12px]">
+            <span className="w-6 h-6 rounded-full bg-[#10B981] text-white flex items-center justify-center font-bold tabular-nums text-xs shadow-xs">
               {dayNumber}
             </span>
           ) : (
-            <span className="text-[12px] font-medium text-[#525252] tabular-nums px-1 py-0.5">
+            <span className="text-xs font-semibold text-[#1F2937] tabular-nums px-1 py-0.5">
               {dayNumber}
             </span>
           )}
         </div>
 
         {items.length > 0 && (
-          <span className="text-[12px] text-[#737373] tabular-nums">
+          <span className="text-[10px] font-semibold text-[#64748B] bg-slate-100 px-1.5 py-0.5 rounded-full tabular-nums">
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </span>
         )}
       </div>
 
-      {/* Cards List (Max 2 cards per cell) */}
+      {/* Cards List (Max 2 cards visible per cell) */}
       <div className="space-y-1.5 flex-1 flex flex-col justify-start">
         {visibleItems.map((item) => (
           <DraggableItemCard
@@ -336,7 +342,7 @@ function DroppableDay({
               e.stopPropagation();
               onOpenMore(dateStr);
             }}
-            className="w-full text-center py-1 text-[12px] font-medium text-[#0A0A0A] bg-[#F5F5F5] hover:bg-[#E5E5E5] border border-[#E5E5E5] rounded-[6px] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+            className="w-full text-center py-1 text-[11px] font-semibold text-[#10B981] bg-[#E8F7F1]/60 hover:bg-[#E8F7F1] border border-[#10B981]/20 rounded-lg transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981]"
           >
             +{moreCount} more
           </button>
@@ -377,37 +383,47 @@ function ConfirmationModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-150"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-150"
         onClick={onClose}
       />
 
       {/* Dialog Body */}
-      <div className="relative bg-white border border-[#E5E5E5] rounded-[10px] p-6 max-w-sm w-full space-y-4 shadow-xl z-10 animate-in zoom-in-95 duration-150">
+      <div className="relative bg-white border border-[#EDF0F2] rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl z-10 animate-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between">
-          <h3 className="text-[16px] font-semibold text-[#0A0A0A] leading-snug">
-            {title}
-          </h3>
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
+                isDestructive ? 'bg-rose-50 text-rose-600' : 'bg-[#E8F7F1] text-[#10B981]'
+              )}
+            >
+              <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <h3 className="text-base font-bold text-[#1F2937] leading-snug">
+              {title}
+            </h3>
+          </div>
           <button
             type="button"
             aria-label="Close dialog"
             onClick={onClose}
             disabled={isLoading}
-            className="text-[#737373] hover:text-[#0A0A0A] p-1 rounded-[6px] transition-colors"
+            className="text-[#64748B] hover:text-[#1F2937] p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-[14px] text-[#525252] leading-relaxed">
+        <p className="text-xs text-[#64748B] leading-relaxed">
           {description}
         </p>
 
-        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#E5E5E5]">
+        <div className="flex items-center justify-end space-x-2 pt-3 border-t border-[#EDF0F2]">
           <button
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-[#F5F5F5] rounded-[8px] text-[12px] font-medium px-3 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+            className="border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 rounded-xl text-xs font-semibold px-3.5 py-2 transition-colors cursor-pointer"
           >
             Cancel
           </button>
@@ -417,10 +433,10 @@ function ConfirmationModal({
             onClick={onConfirm}
             disabled={isLoading}
             className={cn(
-              'rounded-[8px] text-[12px] font-medium px-3.5 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
+              'rounded-xl text-xs font-bold px-4 py-2 transition-all cursor-pointer shadow-xs active:scale-[0.98]',
               isDestructive
-                ? 'bg-[#DC2626] text-white hover:bg-red-700 focus-visible:ring-red-600'
-                : 'bg-[#0A0A0A] text-white hover:bg-[#262626] focus-visible:ring-[#0A0A0A]'
+                ? 'bg-rose-600 text-white hover:bg-rose-700'
+                : 'bg-[#10B981] text-white hover:bg-[#059669]'
             )}
           >
             {isLoading ? 'Processing...' : confirmText}
@@ -432,7 +448,7 @@ function ConfirmationModal({
 }
 
 // -----------------------------------------------------------------------------
-// 5. INTERACTIVE DATE PICKER INPUT (Format EEE, d MMM yyyy, store ISO internally)
+// 5. INTERACTIVE DATE PICKER INPUT
 // -----------------------------------------------------------------------------
 
 function DatePickerInput({
@@ -539,37 +555,37 @@ function DatePickerInput({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between border border-[#E5E5E5] bg-white rounded-[8px] px-3 py-2 text-[12px] font-medium text-[#0A0A0A] hover:border-[#A3A3A3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A] transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between border border-[#EDF0F2] bg-white rounded-xl px-3.5 py-2 text-xs font-semibold text-[#1F2937] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#10B981] transition-colors cursor-pointer"
       >
         <span className="tabular-nums">{formatDisplayDate(value)}</span>
-        <CalendarIcon className="w-4 h-4 text-[#737373]" />
+        <CalendarIcon className="w-4 h-4 text-[#64748B]" />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 bg-white border border-[#E5E5E5] rounded-[10px] p-3 shadow-xl w-64 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute top-full left-0 mt-1.5 z-50 bg-white border border-[#EDF0F2] rounded-2xl p-3.5 shadow-2xl w-64 animate-in fade-in zoom-in-95 duration-100">
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
               aria-label="Previous month"
               onClick={handlePrevMonth}
-              className="p-1 rounded-[6px] hover:bg-neutral-100 text-[#525252] hover:text-[#0A0A0A] transition-colors"
+              className="p-1 rounded-lg hover:bg-slate-100 text-[#64748B] hover:text-[#1F2937] transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-[12px] font-semibold text-[#0A0A0A] uppercase tracking-[0.04em]">
+            <span className="text-xs font-bold text-[#1F2937] uppercase tracking-wider">
               {monthLabel}
             </span>
             <button
               type="button"
               aria-label="Next month"
               onClick={handleNextMonth}
-              className="p-1 rounded-[6px] hover:bg-neutral-100 text-[#525252] hover:text-[#0A0A0A] transition-colors"
+              className="p-1 rounded-lg hover:bg-slate-100 text-[#64748B] hover:text-[#1F2937] transition-colors cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[12px] font-medium text-[#737373] mb-1">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-[#64748B] mb-1">
             <span>S</span>
             <span>M</span>
             <span>T</span>
@@ -579,7 +595,7 @@ function DatePickerInput({
             <span>S</span>
           </div>
 
-          <div className="grid grid-cols-7 gap-1 text-center text-[12px]">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs">
             {daysInGrid.map((d, idx) => {
               const isSelected = d.dateStr === value;
               return (
@@ -591,12 +607,12 @@ function DatePickerInput({
                     setIsOpen(false);
                   }}
                   className={cn(
-                    'h-7 w-7 rounded-full flex items-center justify-center font-medium tabular-nums transition-colors',
+                    'h-7 w-7 rounded-lg flex items-center justify-center font-semibold tabular-nums transition-colors cursor-pointer',
                     isSelected
-                      ? 'bg-[#0A0A0A] text-white font-semibold'
+                      ? 'bg-[#10B981] text-white'
                       : d.isCurrentMonth
-                        ? 'text-[#0A0A0A] hover:bg-neutral-100'
-                        : 'text-[#A3A3A3] hover:bg-neutral-50'
+                        ? 'text-[#1F2937] hover:bg-slate-100'
+                        : 'text-slate-300 hover:bg-slate-50'
                   )}
                 >
                   {d.day}
@@ -611,7 +627,7 @@ function DatePickerInput({
 }
 
 // -----------------------------------------------------------------------------
-// 6. ITEM INSPECTOR COMPONENT (Reusable for Desktop side, Drawer, Bottom Sheet)
+// 6. ITEM INSPECTOR COMPONENT (Reusable Panel)
 // -----------------------------------------------------------------------------
 
 interface ItemInspectorProps {
@@ -641,10 +657,10 @@ function ItemInspector({
 
   if (!item) {
     return (
-      <div className="border border-[#E5E5E5] rounded-[10px] bg-white p-6 text-center text-[#737373] space-y-2 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
-        <CalendarIcon className="w-8 h-8 mx-auto text-[#A3A3A3]" />
-        <h4 className="text-[12px] uppercase tracking-[0.04em] font-medium text-[#0A0A0A]">No Item Selected</h4>
-        <p className="text-[12px] text-[#525252] leading-relaxed">
+      <div className="border border-[#EDF0F2] rounded-2xl bg-white p-6 text-center text-[#64748B] space-y-2 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)]">
+        <CalendarIcon className="w-8 h-8 mx-auto text-[#94A3B8]" />
+        <h4 className="text-xs uppercase tracking-wider font-bold text-[#1F2937]">No Item Selected</h4>
+        <p className="text-xs text-[#64748B] leading-relaxed">
           Select any calendar item to inspect details, modify broadcast dates, or pause distribution.
         </p>
       </div>
@@ -655,21 +671,21 @@ function ItemInspector({
   const isWhatsApp = item.format === 'WHATSAPP_BROADCAST';
   const pauseButtonText = isWhatsApp
     ? item.status === 'Paused'
-      ? 'Resume broadcast'
-      : 'Pause broadcast'
+      ? 'Resume Broadcast'
+      : 'Pause Broadcast'
     : item.status === 'Paused'
-      ? 'Resume'
-      : 'Pause';
+      ? 'Resume Flight'
+      : 'Pause Flight';
 
   return (
-    <div className="border border-[#E5E5E5] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
-      {/* Inspector Header: Title (18px, semibold), status badge, close button */}
-      <div className="p-4 border-b border-[#E5E5E5] bg-white flex items-start justify-between gap-3">
+    <div className="border border-[#EDF0F2] rounded-2xl bg-white shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] overflow-hidden">
+      {/* Inspector Header */}
+      <div className="p-4 border-b border-[#EDF0F2] bg-slate-50/50 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-[#737373] block">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#10B981] block">
             Item Inspector
           </span>
-          <h3 className="text-[18px] font-semibold text-[#0A0A0A] leading-snug">
+          <h3 className="text-base font-bold text-[#1F2937] leading-snug">
             {item.title}
           </h3>
         </div>
@@ -677,11 +693,11 @@ function ItemInspector({
         <div className="flex items-center space-x-2 shrink-0 pt-0.5">
           <span
             className={cn(
-              'text-[12px] font-medium px-2.5 py-0.5 rounded-[6px] tracking-tight transition-colors',
-              item.status === 'Approved' && 'bg-[#0A0A0A] text-white',
-              item.status === 'Scheduled' && 'border border-[#0A0A0A] text-[#0A0A0A] bg-transparent',
-              item.status === 'Paused' && 'border border-[#E5E5E5] bg-[#F5F5F5] text-[#525252]',
-              item.status === 'Draft' && 'bg-neutral-100 text-[#525252]'
+              'text-[11px] font-bold px-2.5 py-0.5 rounded-full tracking-tight transition-colors',
+              item.status === 'Approved' && 'bg-[#E8F7F1] text-[#10B981] border border-[#10B981]/20',
+              item.status === 'Scheduled' && 'bg-[#EFF6FF] text-[#3B82F6] border border-[#3B82F6]/20',
+              item.status === 'Paused' && 'bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/20',
+              item.status === 'Draft' && 'bg-slate-100 text-[#64748B]'
             )}
           >
             {item.status || 'Draft'}
@@ -692,7 +708,7 @@ function ItemInspector({
               type="button"
               aria-label="Close inspector"
               onClick={onClose}
-              className="text-[#737373] hover:text-[#0A0A0A] p-1 rounded-[6px] transition-colors"
+              className="text-[#64748B] hover:text-[#1F2937] p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
               title="Close Inspector"
             >
               <X className="w-4 h-4" />
@@ -701,74 +717,67 @@ function ItemInspector({
         </div>
       </div>
 
-      <div className="p-4 space-y-5 text-[12px]">
-        {/* Details: Two-column list, muted 12px labels, 14px medium values, 12px vertical rhythm, thin dividers */}
-        <div className="divide-y divide-[#E5E5E5]">
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Project</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A] truncate max-w-[200px]" title={item.projectName}>
+      <div className="p-4 space-y-4 text-xs">
+        {/* Details Two-Column List */}
+        <div className="divide-y divide-[#EDF0F2]">
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Project</span>
+            <span className="text-xs font-bold text-[#1F2937] truncate max-w-[180px]" title={item.projectName}>
               {item.projectName}
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Platform</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A] flex items-center space-x-1.5">
-              <Icon className="w-4 h-4 text-[#0A0A0A]" />
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Platform</span>
+            <span className="text-xs font-semibold text-[#1F2937] flex items-center space-x-1.5">
+              <Icon className="w-3.5 h-3.5 text-[#10B981]" />
               <span>{platformLabel}</span>
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Type</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A]">
-              {item.isPaid ? 'Paid' : 'Organic'}
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Type</span>
+            <span className="text-xs font-semibold text-[#1F2937]">
+              {item.isPaid ? 'Paid Advertising' : 'Organic Social'}
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Date</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A] tabular-nums">
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Scheduled Date</span>
+            <span className="text-xs font-bold text-[#1F2937] tabular-nums">
               {formatDisplayDate(item.date)}
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Time</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A] tabular-nums">
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Time</span>
+            <span className="text-xs font-bold text-[#1F2937] tabular-nums">
               {item.time} ({item.timezone || 'Asia/Kolkata'})
             </span>
           </div>
 
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Status</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A]">
-              {item.status}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-[12px] font-medium text-[#737373] uppercase tracking-[0.04em]">Version</span>
-            <span className="text-[14px] font-medium text-[#0A0A0A] tabular-nums">
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider">Version</span>
+            <span className="text-xs font-bold text-[#1F2937] tabular-nums">
               v{item.version || 1}
             </span>
           </div>
         </div>
 
-        {/* Creative Brief in a soft grey box with 14px/1.5 text */}
+        {/* Creative Brief */}
         <div className="space-y-1.5">
-          <span className="text-[12px] font-medium uppercase tracking-[0.04em] text-[#737373] block">
-            Creative Brief & Topic
+          <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] block">
+            Creative Brief &amp; Topic
           </span>
-          <div className="bg-[#F5F5F5] border border-[#E5E5E5] rounded-[10px] p-3.5 text-[14px] leading-[1.5] text-[#0A0A0A]">
+          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs leading-relaxed text-[#1F2937]">
             {item.creativeBrief || item.topic || 'Targeted property marketing and strategic campaign flight.'}
           </div>
         </div>
 
-        {/* Reschedule Date Control with matching format date picker */}
-        <div className="space-y-2 border-t border-[#E5E5E5] pt-4">
-          <label className="block text-[12px] font-medium uppercase tracking-[0.04em] text-[#737373]">
-            Reschedule Date (Current: <span className="tabular-nums font-semibold text-[#0A0A0A]">{formatDisplayDate(item.date)}</span>)
+        {/* Reschedule Date Control */}
+        <div className="space-y-2 border-t border-[#EDF0F2] pt-3">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
+            Reschedule Date
           </label>
           <div className="flex items-center space-x-2">
             <div className="flex-1">
@@ -782,13 +791,13 @@ function ItemInspector({
               type="button"
               disabled={rescheduleDate === item.date || !rescheduleDate || isUpdatingAction}
               onClick={() => onUpdateDate(rescheduleDate)}
-              className="bg-[#0A0A0A] text-white hover:bg-[#262626] disabled:opacity-40 disabled:cursor-not-allowed rounded-[8px] text-[12px] font-medium px-4 py-2 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+              className="bg-[#10B981] text-white hover:bg-[#059669] disabled:opacity-40 disabled:cursor-not-allowed rounded-xl text-xs font-bold px-3.5 py-2 transition-all cursor-pointer shrink-0 shadow-xs"
             >
               Apply
             </button>
           </div>
 
-          {/* Quick Reschedule Pills: "+1 day" and "+7 days" */}
+          {/* Quick Reschedule Pills */}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
@@ -797,7 +806,7 @@ function ItemInspector({
                 const next = addDays(parseISO(rescheduleDate || item.date), 1);
                 setRescheduleDate(formatDate(next, 'yyyy-MM-dd'));
               }}
-              className="border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-[#F5F5F5] rounded-[8px] text-[12px] font-medium py-1.5 px-3 transition-colors text-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+              className="border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 rounded-xl text-xs font-semibold py-1.5 px-3 transition-colors text-center cursor-pointer"
             >
               +1 day
             </button>
@@ -808,25 +817,25 @@ function ItemInspector({
                 const next = addDays(parseISO(rescheduleDate || item.date), 7);
                 setRescheduleDate(formatDate(next, 'yyyy-MM-dd'));
               }}
-              className="border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-[#F5F5F5] rounded-[8px] text-[12px] font-medium py-1.5 px-3 transition-colors text-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+              className="border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 rounded-xl text-xs font-semibold py-1.5 px-3 transition-colors text-center cursor-pointer"
             >
               +7 days
             </button>
           </div>
         </div>
 
-        {/* Actions: Pause & Outlined Destructive Cancel schedule */}
-        <div className="space-y-2 border-t border-[#E5E5E5] pt-4">
+        {/* Actions: Pause & Cancel schedule */}
+        <div className="space-y-2 border-t border-[#EDF0F2] pt-3">
           <button
             type="button"
             onClick={onTogglePause}
             disabled={isUpdatingAction}
-            className="w-full border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-[#F5F5F5] rounded-[10px] text-[12px] font-medium py-2.5 transition-colors cursor-pointer flex items-center justify-center space-x-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+            className="w-full border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 rounded-xl text-xs font-bold py-2.5 transition-colors cursor-pointer flex items-center justify-center space-x-2"
           >
             {item.status === 'Paused' ? (
-              <Play className="w-3.5 h-3.5 text-[#0A0A0A]" />
+              <Play className="w-3.5 h-3.5 text-[#10B981]" />
             ) : (
-              <Pause className="w-3.5 h-3.5 text-[#0A0A0A]" />
+              <Pause className="w-3.5 h-3.5 text-[#10B981]" />
             )}
             <span>{pauseButtonText}</span>
           </button>
@@ -835,10 +844,10 @@ function ItemInspector({
             type="button"
             onClick={onCancelItem}
             disabled={isUpdatingAction}
-            className="w-full border border-[#E5E5E5] text-[#DC2626] hover:border-[#DC2626] hover:bg-red-50/50 rounded-[10px] text-[12px] font-medium py-2.5 transition-colors cursor-pointer flex items-center justify-center space-x-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
+            className="w-full border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold py-2.5 transition-colors cursor-pointer flex items-center justify-center space-x-2"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>Cancel schedule</span>
+            <span>Cancel Schedule</span>
           </button>
         </div>
       </div>
@@ -946,7 +955,7 @@ export function CalendarPage() {
     })
   );
 
-  // Calendar Days calculation for the active month
+  // Calendar Days calculation for active month
   const monthDays = useMemo(() => {
     const days: {
       day: number;
@@ -986,10 +995,11 @@ export function CalendarPage() {
       const dStr = String(d).padStart(2, '0');
       const dateString = `${currentYear}-${mStr}-${dStr}`;
       const dayOfWeek = new Date(currentYear, currentMonth - 1, d).getDay();
+      const now = new Date();
       const isToday =
-        currentYear === 2026 &&
-        currentMonth === 11 &&
-        d === 27;
+        currentYear === now.getFullYear() &&
+        currentMonth === now.getMonth() + 1 &&
+        d === now.getDate();
 
       days.push({
         day: d,
@@ -1001,7 +1011,7 @@ export function CalendarPage() {
       });
     }
 
-    // Remainder to complete full grid weeks (up to 35 or 42 cells)
+    // Remainder to complete full grid weeks
     const remainder = (7 - (days.length % 7)) % 7;
     for (let d = 1; d <= remainder; d++) {
       const nextM = currentMonth === 12 ? 1 : currentMonth + 1;
@@ -1202,19 +1212,23 @@ export function CalendarPage() {
   };
 
   const handleGoToday = () => {
-    setCurrentMonth(11);
-    setCurrentYear(2026);
-    setSelectedAgendaDate('2026-11-27');
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    const d = now.getDate();
+    setCurrentMonth(m);
+    setCurrentYear(y);
+    setSelectedAgendaDate(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
   };
 
   // Loading Skeleton State
   if (isLoading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-14 bg-white border border-[#E5E5E5] rounded-[10px] w-full" />
-        <div className="grid grid-cols-7 gap-2">
+      <div className="space-y-6 animate-pulse pb-12">
+        <div className="h-16 bg-white border border-[#EDF0F2] rounded-2xl w-full" />
+        <div className="grid grid-cols-7 gap-3">
           {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="h-32 bg-white border border-[#E5E5E5] rounded-[10px]" />
+            <div key={i} className="h-36 bg-white border border-[#EDF0F2] rounded-2xl" />
           ))}
         </div>
       </div>
@@ -1224,15 +1238,15 @@ export function CalendarPage() {
   // Error State with Retry Button
   if (isError) {
     return (
-      <div className="border border-[#E5E5E5] rounded-[10px] p-8 space-y-4 bg-white text-center max-w-lg mx-auto my-12 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
-        <div className="w-12 h-12 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] text-[#0A0A0A] flex items-center justify-center mx-auto">
-          <AlertTriangle className="w-6 h-6 text-[#0A0A0A]" />
+      <div className="border border-rose-200 bg-rose-50/50 rounded-2xl p-8 space-y-4 text-center max-w-lg mx-auto my-12 shadow-sm">
+        <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-6 h-6 stroke-[2.2]" />
         </div>
         <div className="space-y-1">
-          <h2 className="text-[16px] font-semibold text-[#0A0A0A]">
-            Error Loading Calendar
+          <h2 className="text-base font-bold text-rose-900">
+            Error Loading Editorial Calendar
           </h2>
-          <p className="text-[14px] text-[#525252]">
+          <p className="text-xs text-rose-700 leading-relaxed">
             Could not retrieve scheduled campaigns from the backend API.
           </p>
         </div>
@@ -1249,174 +1263,195 @@ export function CalendarPage() {
     resumeMutation.isPending ||
     cancelMutation.isPending;
 
+  // Real backend metrics summary (scoped to active property filter and calendar period)
+  const totalCount = filteredItems.length;
+  const approvedCount = filteredItems.filter((i) => i.status === 'Approved').length;
+  const scheduledCount = filteredItems.filter((i) => i.status === 'Scheduled').length;
+  const pausedCount = filteredItems.filter((i) => i.status === 'Paused').length;
+
   return (
     <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-      <div className="space-y-4 w-full max-w-full overflow-x-hidden">
-        {/* 1. HEADER & RESPONSIVE TOOLBAR */}
-        <div className="space-y-3 pb-3 border-b border-[#E5E5E5]">
-          {/* Title with Subtitle below it */}
+      <div className="space-y-6 w-full max-w-full overflow-x-hidden pb-16">
+        {/* 1. HEADER & BREADCRUMBS */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-[28px] font-semibold tracking-tight text-[#0A0A0A] leading-tight">
-              Marketing Calendar
-            </h1>
-            <p className="text-[12px] text-[#737373] mt-0.5 font-normal">
-              Facebook, Instagram and WhatsApp
+            <nav aria-label="Breadcrumbs" className="flex items-center gap-1.5 text-xs text-[#64748B] mb-1">
+              <Link to="/dashboard" className="hover:text-[#10B981] transition-colors">
+                Dashboard
+              </Link>
+              <span className="text-slate-300">/</span>
+              <span className="text-[#64748B]">Content Planning</span>
+              <span className="text-slate-300">/</span>
+              <span className="font-semibold text-[#1F2937]">Editorial Calendar</span>
+            </nav>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-[#1F2937]">
+                Editorial Content Calendar
+              </h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#E8F7F1] text-[#10B981] border border-[#10B981]/20">
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#10B981]" />
+                <span>Scheduled Content Flights</span>
+              </span>
+            </div>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Coordinate and reschedule real estate marketing flights across Meta Ads, Instagram Reels, and WhatsApp Broadcasts.
             </p>
           </div>
 
-          {/* Aligned Toolbar: One row on desktop, wrapping on tablet/mobile */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            {/* Left Controls: Month Navigation, Today, Segmented Switcher & Project Filter */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Month Navigation (< Month Year >) */}
-              <div className="flex items-center rounded-[8px] border border-[#E5E5E5] bg-white shadow-xs">
-                <button
-                  type="button"
-                  aria-label="Previous month"
-                  onClick={handlePrevMonth}
-                  className="p-1.5 hover:bg-neutral-50 text-[#525252] hover:text-[#0A0A0A] transition-colors cursor-pointer border-r border-[#E5E5E5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-[12px] font-medium text-[#0A0A0A] px-3 py-1.5 min-w-[130px] text-center tabular-nums">
-                  {monthName} {currentYear}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Next month"
-                  onClick={handleNextMonth}
-                  className="p-1.5 hover:bg-neutral-50 text-[#525252] hover:text-[#0A0A0A] transition-colors cursor-pointer border-l border-[#E5E5E5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Today Button */}
-              <button
-                type="button"
-                onClick={handleGoToday}
-                className="rounded-[8px] border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-neutral-50 px-3 py-1.5 text-[12px] font-medium transition-colors shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-              >
-                Today
-              </button>
-
-              {/* Month/Week/List Segmented Control */}
-              <div className="flex items-center rounded-[8px] border border-[#E5E5E5] bg-[#F5F5F5] p-0.5 gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('month')}
-                  className={cn(
-                    'px-3 py-1 text-[12px] font-medium rounded-[6px] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]',
-                    viewMode === 'month'
-                      ? 'bg-[#0A0A0A] text-white shadow-xs font-semibold'
-                      : 'text-[#525252] hover:text-[#0A0A0A]'
-                  )}
-                >
-                  Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('week')}
-                  className={cn(
-                    'px-3 py-1 text-[12px] font-medium rounded-[6px] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]',
-                    viewMode === 'week'
-                      ? 'bg-[#0A0A0A] text-white shadow-xs font-semibold'
-                      : 'text-[#525252] hover:text-[#0A0A0A]'
-                  )}
-                >
-                  Week
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('list')}
-                  className={cn(
-                    'px-3 py-1 text-[12px] font-medium rounded-[6px] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]',
-                    viewMode === 'list'
-                      ? 'bg-[#0A0A0A] text-white shadow-xs font-semibold'
-                      : 'text-[#525252] hover:text-[#0A0A0A]'
-                  )}
-                >
-                  List
-                </button>
-              </div>
-
-              {/* Project Filter */}
-              <select
-                value={projectFilter}
-                onChange={(e) => setProjectFilter(e.target.value)}
-                aria-label="Filter by project"
-                className="rounded-[8px] border border-[#E5E5E5] bg-white text-[#0A0A0A] px-3 py-1.5 text-[12px] font-medium cursor-pointer shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-              >
-                <option value="ALL">
-                  All Projects ({rawItems.length})
-                </option>
-                {distinctProjects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-
-              {/* Refresh Icon Button */}
-              <button
-                type="button"
-                aria-label="Refresh calendar"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                title="Refresh calendar items"
-                className="p-2 rounded-[8px] border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-neutral-50 transition-colors shadow-xs cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-              >
-                <RotateCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
-              </button>
+          {/* Quick Metrics Strip */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#EDF0F2] bg-white text-xs shadow-xs">
+              <span className="text-[#64748B]">Total Scheduled:</span>
+              <strong className="text-[#1F2937] font-bold tabular-nums">{totalCount}</strong>
             </div>
-
-            {/* Right Action: Primary Black Generate Monthly Plan Button */}
-            <button
-              type="button"
-              onClick={handleGeneratePlan}
-              disabled={generatePlanMutation.isPending}
-              className="bg-[#0A0A0A] text-white hover:bg-[#262626] rounded-[8px] text-[12px] font-medium px-4 py-2 flex items-center gap-2 shadow-xs transition-colors cursor-pointer ml-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{generatePlanMutation.isPending ? 'Generating...' : 'Generate Monthly Plan'}</span>
-            </button>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-xs shadow-xs">
+              <span className="text-emerald-700">Approved:</span>
+              <strong className="text-emerald-900 font-bold tabular-nums">{approvedCount}</strong>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 text-xs shadow-xs">
+              <span className="text-blue-700">Scheduled:</span>
+              <strong className="text-blue-900 font-bold tabular-nums">{scheduledCount}</strong>
+            </div>
+            {pausedCount > 0 && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-xs shadow-xs">
+                <span className="text-amber-700">Paused:</span>
+                <strong className="text-amber-900 font-bold tabular-nums">{pausedCount}</strong>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 2. DISMISSIBLE TIP BANNER (Stays dismissed in localStorage) */}
+        {/* 2. RESPONSIVE ACTION TOOLBAR */}
+        <div className="rounded-2xl border border-[#EDF0F2] bg-white p-4 shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] flex flex-wrap items-center justify-between gap-3">
+          {/* Left Controls: Month Navigator, Today, Segmented View Switcher & Project Filter */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Month Navigation (< Month Year >) */}
+            <div className="inline-flex items-center rounded-xl border border-[#EDF0F2] bg-white shadow-xs">
+              <button
+                type="button"
+                aria-label="Previous month"
+                onClick={handlePrevMonth}
+                className="p-2 hover:bg-slate-50 text-[#64748B] hover:text-[#1F2937] transition-colors cursor-pointer border-r border-[#EDF0F2] rounded-l-xl"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-bold text-[#1F2937] px-4 py-2 min-w-[140px] text-center tabular-nums">
+                {monthName} {currentYear}
+              </span>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={handleNextMonth}
+                className="p-2 hover:bg-slate-50 text-[#64748B] hover:text-[#1F2937] transition-colors cursor-pointer border-l border-[#EDF0F2] rounded-r-xl"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Today Action */}
+            <button
+              type="button"
+              onClick={handleGoToday}
+              className="rounded-xl border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 px-3.5 py-2 text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+            >
+              Today
+            </button>
+
+            {/* Segmented View Mode Switcher */}
+            <div className="inline-flex items-center rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+              {(['month', 'week', 'list'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setViewMode(m)}
+                  className={cn(
+                    'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer capitalize',
+                    viewMode === m
+                      ? 'bg-white text-[#10B981] shadow-xs'
+                      : 'text-[#64748B] hover:text-[#1F2937]'
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            {/* Project Filter */}
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              aria-label="Filter by project"
+              className="rounded-xl border border-[#EDF0F2] bg-white text-[#1F2937] px-3 py-2 text-xs font-semibold cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+            >
+              <option value="ALL">All Properties ({rawItems.length})</option>
+              {distinctProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            {/* Refresh Action */}
+            <button
+              type="button"
+              aria-label="Refresh calendar"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              title="Refresh calendar items"
+              className="p-2 rounded-xl border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 transition-colors shadow-xs cursor-pointer"
+            >
+              <RotateCw className={cn('w-4 h-4 text-[#10B981]', isFetching && 'animate-spin')} />
+            </button>
+          </div>
+
+          {/* Right Action: Generate Monthly Plan Button */}
+          <button
+            type="button"
+            onClick={handleGeneratePlan}
+            disabled={generatePlanMutation.isPending}
+            className="bg-[#10B981] hover:bg-[#059669] text-white rounded-xl text-xs font-bold px-4 py-2.5 flex items-center gap-2 shadow-xs transition-all active:scale-[0.98] cursor-pointer ml-auto disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{generatePlanMutation.isPending ? 'Generating Draft...' : 'Generate Monthly Plan'}</span>
+          </button>
+        </div>
+
+        {/* 3. DISMISSIBLE TIP BANNER */}
         {!isTipDismissed && (
-          <div className="flex items-center justify-between border border-[#E5E5E5] bg-white rounded-[10px] px-3.5 py-2 text-[12px] text-[#525252] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all">
+          <div className="flex items-center justify-between border border-[#EDF0F2] bg-white rounded-2xl px-4 py-2.5 text-xs text-[#64748B] shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] transition-all">
             <div className="flex items-center gap-2 min-w-0">
-              <GripVertical className="w-3.5 h-3.5 text-[#737373] shrink-0" />
+              <GripVertical className="w-4 h-4 text-[#10B981] shrink-0" />
               <span className="truncate">
-                <strong className="text-[#0A0A0A] font-medium">Tip:</strong> Drag any card to reschedule between days, or click to inspect and adjust broadcasts.
+                <strong className="text-[#1F2937] font-semibold">Interactive Tip:</strong> Drag any content card to reschedule across dates, or click a card to inspect metadata, change times, and pause flights.
               </span>
             </div>
             <button
               type="button"
               aria-label="Dismiss tip"
               onClick={handleDismissTip}
-              className="text-[#737373] hover:text-[#0A0A0A] p-1 rounded-[6px] hover:bg-neutral-100 transition-colors shrink-0 ml-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+              className="text-[#64748B] hover:text-[#1F2937] p-1 rounded-lg hover:bg-slate-100 transition-colors shrink-0 ml-2 cursor-pointer"
               title="Dismiss tip"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* 3. CALENDAR BODY & RESPONSIVE LAYOUT */}
+        {/* 4. CALENDAR BODY & MULTI-VIEW PRESENTATION */}
         {rawItems.length === 0 ? (
           /* Empty Month State with Action */
-          <div className="border border-[#E5E5E5] bg-white p-12 text-center space-y-4 rounded-[10px] shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
-            <CalendarIcon className="w-10 h-10 mx-auto text-[#A3A3A3]" />
+          <div className="border border-[#EDF0F2] bg-white p-12 text-center space-y-4 rounded-2xl shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)]">
+            <div className="h-12 w-12 rounded-2xl bg-[#E8F7F1] text-[#10B981] flex items-center justify-center mx-auto">
+              <CalendarDays className="w-6 h-6 stroke-[2.2]" />
+            </div>
             <div className="space-y-1">
-              <h3 className="text-[16px] font-semibold text-[#0A0A0A]">
-                {projects.length === 0 ? 'Create a Project to Start Planning' : 'No Marketing Items Scheduled'}
+              <h3 className="text-base font-bold text-[#1F2937]">
+                {projects.length === 0 ? 'Create a Property to Start Planning' : 'No Scheduled Content Flights'}
               </h3>
-              <p className="text-[14px] text-[#525252] max-w-md mx-auto leading-relaxed">
+              <p className="text-xs text-[#64748B] max-w-md mx-auto leading-relaxed">
                 {projects.length === 0
-                  ? 'Your multi-channel marketing calendar generates social posts, ad flights, and campaigns directly from real properties in your catalog. Please add your first project in Catalog to generate your plan.'
-                  : `No calendar items exist for ${monthName} ${currentYear}. Click below to generate an omni-channel schedule based on your active projects and budget.`}
+                  ? 'Your multi-channel editorial calendar schedules posts, reels, and broadcasts directly from real properties in your catalog. Please add your first project in Catalog to begin.'
+                  : `No calendar items exist for ${monthName} ${currentYear}. Click below to synthesize an omni-channel schedule based on your active projects and target budget.`}
               </p>
             </div>
             {projects.length === 0 ? (
@@ -1426,16 +1461,15 @@ export function CalendarPage() {
                 </Button>
               </Link>
             ) : (
-              <Button
+              <button
                 type="button"
-                variant="primary"
-                size="sm"
                 onClick={handleGeneratePlan}
-                isLoading={generatePlanMutation.isPending}
-                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                disabled={generatePlanMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#10B981] text-white text-xs font-semibold hover:bg-[#059669] shadow-xs transition-all cursor-pointer"
               >
-                Generate Draft Calendar
-              </Button>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Generate Draft Calendar</span>
+              </button>
             )}
           </div>
         ) : (
@@ -1443,7 +1477,7 @@ export function CalendarPage() {
             {/* A. MOBILE VIEW (<768px): Agenda List + Compact Month Jump Strip */}
             <div className="block md:hidden space-y-4">
               {/* Compact Month Jump Strip */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-2 scrollbar-none border-b border-[#E5E5E5]">
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-2 scrollbar-none border-b border-[#EDF0F2]">
                 {monthDays.map((d) => {
                   const isSelected = selectedAgendaDate === d.dateStr;
                   const hasItems = d.items.length > 0;
@@ -1454,19 +1488,19 @@ export function CalendarPage() {
                       type="button"
                       onClick={() => setSelectedAgendaDate(d.dateStr)}
                       className={cn(
-                        'flex flex-col items-center justify-center min-w-[44px] py-2 px-1 rounded-[8px] border transition-all text-[12px] cursor-pointer shrink-0',
+                        'flex flex-col items-center justify-center min-w-[44px] py-2 px-1 rounded-xl border transition-all text-xs cursor-pointer shrink-0',
                         isSelected
-                          ? 'bg-[#0A0A0A] text-white border-[#0A0A0A] font-semibold shadow-xs'
-                          : 'bg-white text-[#525252] border-[#E5E5E5] hover:border-[#A3A3A3]'
+                          ? 'bg-[#10B981] text-white border-[#10B981] font-bold shadow-xs'
+                          : 'bg-white text-[#64748B] border-[#EDF0F2] hover:border-slate-300'
                       )}
                     >
-                      <span className="text-[12px] uppercase opacity-75">{weekday}</span>
-                      <span className="text-[14px] font-semibold tabular-nums">{d.day}</span>
+                      <span className="text-[10px] uppercase opacity-80">{weekday}</span>
+                      <span className="text-xs font-bold tabular-nums mt-0.5">{d.day}</span>
                       {hasItems && (
                         <span
                           className={cn(
                             'w-1.5 h-1.5 rounded-full mt-1',
-                            isSelected ? 'bg-white' : 'bg-[#0A0A0A]'
+                            isSelected ? 'bg-white' : 'bg-[#10B981]'
                           )}
                         />
                       )}
@@ -1481,14 +1515,14 @@ export function CalendarPage() {
                   .filter((d) => (selectedAgendaDate ? d.dateStr === selectedAgendaDate : true))
                   .map((d) => (
                     <div key={d.dateStr} className="space-y-2">
-                      <div className="bg-[#F5F5F5] p-2.5 rounded-[8px] border border-[#E5E5E5] text-[12px] font-semibold text-[#0A0A0A] flex items-center justify-between">
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-[#EDF0F2] text-xs font-bold text-[#1F2937] flex items-center justify-between">
                         <span className="tabular-nums">{formatDisplayDate(d.dateStr)}</span>
-                        <span className="text-[#737373] font-normal tabular-nums">{d.items.length} items</span>
+                        <span className="text-[#64748B] font-semibold tabular-nums">{d.items.length} items</span>
                       </div>
 
                       {d.items.length === 0 ? (
-                        <p className="text-[12px] text-[#737373] p-4 text-center border border-dashed border-[#E5E5E5] rounded-[8px]">
-                          No scheduled items for this date.
+                        <p className="text-xs text-[#64748B] p-4 text-center border border-dashed border-[#EDF0F2] rounded-xl bg-white">
+                          No scheduled flights for this date.
                         </p>
                       ) : (
                         <div className="space-y-2">
@@ -1497,58 +1531,58 @@ export function CalendarPage() {
                             return (
                               <div
                                 key={item.id}
-                                className="border border-[#E5E5E5] rounded-[10px] bg-white p-3 space-y-2 text-[12px] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                                className="border border-[#EDF0F2] rounded-2xl bg-white p-3.5 space-y-2.5 text-xs shadow-xs"
                               >
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-1.5 text-[12px] font-medium text-[#525252]">
-                                    <Clock className="w-3.5 h-3.5 text-[#737373]" />
+                                  <div className="flex items-center space-x-1.5 text-xs font-bold text-[#1F2937]">
+                                    <Clock className="w-3.5 h-3.5 text-[#10B981]" />
                                     <span className="tabular-nums">{item.time}</span>
                                     {projectFilter === 'ALL' && (
-                                      <span className="w-5 h-5 rounded-full bg-[#F5F5F5] border border-[#E5E5E5] text-[12px] font-medium text-[#525252] flex items-center justify-center">
+                                      <span className="w-4 h-4 rounded-full bg-[#E8F7F1] border border-[#10B981]/30 text-[10px] font-bold text-[#10B981] flex items-center justify-center">
                                         {item.projectName.charAt(0).toUpperCase()}
                                       </span>
                                     )}
                                   </div>
                                   <span
                                     className={cn(
-                                      'text-[12px] font-medium px-2 py-0.5 rounded-[6px]',
-                                      item.status === 'Approved' && 'bg-[#0A0A0A] text-white',
-                                      item.status === 'Scheduled' && 'border border-[#0A0A0A] text-[#0A0A0A] bg-transparent',
-                                      item.status === 'Paused' && 'border border-[#E5E5E5] bg-[#F5F5F5] text-[#525252]',
-                                      item.status === 'Draft' && 'bg-neutral-100 text-[#525252]'
+                                      'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                                      item.status === 'Approved' && 'bg-[#E8F7F1] text-[#10B981]',
+                                      item.status === 'Scheduled' && 'bg-[#EFF6FF] text-[#3B82F6]',
+                                      item.status === 'Paused' && 'bg-[#FEF3C7] text-[#D97706]',
+                                      item.status === 'Draft' && 'bg-slate-100 text-[#64748B]'
                                     )}
                                   >
                                     {item.status || 'Draft'}
                                   </span>
                                 </div>
 
-                                <p className="font-medium text-[14px] text-[#0A0A0A] leading-snug">{item.title}</p>
+                                <p className="font-semibold text-xs text-[#1F2937] leading-snug">{item.title}</p>
 
-                                <div className="flex items-center justify-between text-[12px] pt-2 border-t border-[#F0F0F0]">
-                                  <span className="flex items-center space-x-1.5 text-[#525252]">
-                                    <PIcon className="w-3.5 h-3.5 text-[#0A0A0A]" />
+                                <div className="flex items-center justify-between text-xs pt-2 border-t border-[#EDF0F2]">
+                                  <span className="flex items-center space-x-1.5 text-[#64748B]">
+                                    <PIcon className="w-3.5 h-3.5 text-[#1F2937]" />
                                     <span>{pLabel}</span>
                                   </span>
                                   <span
                                     className={cn(
-                                      'text-[12px] font-medium px-2 py-0.5 rounded-[6px]',
+                                      'text-[10px] font-bold px-2 py-0.5 rounded-md',
                                       item.isPaid
-                                        ? 'bg-[#0A0A0A] text-white'
-                                        : 'border border-[#E5E5E5] text-[#525252]'
+                                        ? 'bg-[#E8F7F1] text-[#10B981]'
+                                        : 'border border-[#EDF0F2] text-[#64748B]'
                                     )}
                                   >
                                     {item.isPaid ? 'Paid' : 'Organic'}
                                   </span>
                                 </div>
 
-                                <div className="flex items-center space-x-2 pt-2 border-t border-[#F0F0F0]">
+                                <div className="flex items-center space-x-2 pt-2 border-t border-[#EDF0F2]">
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setSelectedItemId(item.id);
                                       setIsInspectorOpen(true);
                                     }}
-                                    className="flex-1 border border-[#E5E5E5] bg-white text-[#0A0A0A] hover:bg-[#F5F5F5] rounded-[8px] text-[12px] font-medium py-1.5 transition-colors text-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+                                    className="flex-1 border border-[#EDF0F2] bg-white text-[#1F2937] hover:bg-slate-50 rounded-xl text-xs font-semibold py-1.5 transition-colors text-center cursor-pointer"
                                   >
                                     Inspect &amp; Details
                                   </button>
@@ -1558,7 +1592,7 @@ export function CalendarPage() {
                                       setSelectedItemId(item.id);
                                       setIsInspectorOpen(true);
                                     }}
-                                    className="border border-[#E5E5E5] bg-[#F5F5F5] hover:bg-[#E5E5E5] text-[#0A0A0A] rounded-[8px] text-[12px] font-medium py-1.5 px-3 transition-colors text-center cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A]"
+                                    className="border border-[#EDF0F2] bg-slate-50 hover:bg-slate-100 text-[#1F2937] rounded-xl text-xs font-semibold py-1.5 px-3 transition-colors text-center cursor-pointer"
                                   >
                                     Change Date
                                   </button>
@@ -1574,22 +1608,22 @@ export function CalendarPage() {
             </div>
 
             {/* B. TABLET & DESKTOP VIEWS (>=768px) */}
-            <div className="hidden md:flex flex-col xl:flex-row gap-4 items-start w-full">
-              {/* Main Calendar Month Grid (Takes full width on tablet, flex-1 on desktop >=1280px) */}
+            <div className="hidden md:flex flex-col xl:flex-row gap-6 items-start w-full">
+              {/* Main Calendar Month Grid */}
               <div className="flex-1 min-w-0 space-y-4 w-full">
                 {viewMode === 'month' && (
-                  <div className="border border-[#E5E5E5] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] p-3 space-y-2">
-                    {/* Weekday Section Headers: 12px/medium uppercase with 0.04em letter spacing */}
-                    <div className="grid grid-cols-7 gap-2 text-center pb-2 border-b border-[#E5E5E5]">
+                  <div className="border border-[#EDF0F2] rounded-2xl bg-white shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] p-4 space-y-3">
+                    {/* Weekday Section Headers */}
+                    <div className="grid grid-cols-7 gap-2.5 text-center pb-2.5 border-b border-[#EDF0F2]">
                       {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((w) => (
-                        <div key={w} className="text-[12px] font-medium uppercase tracking-[0.04em] text-[#737373]">
+                        <div key={w} className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
                           {w}
                         </div>
                       ))}
                     </div>
 
                     {/* Month Grid Cells (7 Columns) */}
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="grid grid-cols-7 gap-2.5">
                       {monthDays.map((d) => (
                         <DroppableDay
                           key={d.dateStr}
@@ -1614,15 +1648,15 @@ export function CalendarPage() {
 
                 {/* 2. WEEK VIEW */}
                 {viewMode === 'week' && (
-                  <div className="border border-[#E5E5E5] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] p-3 space-y-2">
-                    <div className="grid grid-cols-7 gap-2 text-center pb-2 border-b border-[#E5E5E5]">
+                  <div className="border border-[#EDF0F2] rounded-2xl bg-white shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] p-4 space-y-3">
+                    <div className="grid grid-cols-7 gap-2.5 text-center pb-2.5 border-b border-[#EDF0F2]">
                       {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((w) => (
-                        <div key={w} className="text-[12px] font-medium uppercase tracking-[0.04em] text-[#737373]">
+                        <div key={w} className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
                           {w}
                         </div>
                       ))}
                     </div>
-                    <div className="grid grid-cols-7 gap-2">
+                    <div className="grid grid-cols-7 gap-2.5 min-h-[380px]">
                       {monthDays.slice(0, 7).map((d) => (
                         <DroppableDay
                           key={d.dateStr}
@@ -1647,7 +1681,7 @@ export function CalendarPage() {
 
                 {/* 3. LIST VIEW */}
                 {viewMode === 'list' && (
-                  <div className="border border-[#E5E5E5] rounded-[10px] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] divide-y divide-[#E5E5E5] overflow-hidden">
+                  <div className="border border-[#EDF0F2] rounded-2xl bg-white shadow-[0_0_2px_0_rgba(145,158,171,0.2),0_12px_24px_-4px_rgba(145,158,171,0.12)] divide-y divide-[#EDF0F2] overflow-hidden">
                     {filteredItems.map((item) => {
                       const { label: pLabel, Icon: PIcon } = getPlatformDetails(item.format);
                       return (
@@ -1658,44 +1692,44 @@ export function CalendarPage() {
                             setIsInspectorOpen(true);
                           }}
                           className={cn(
-                            'p-3.5 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition-colors duration-150',
-                            selectedItem?.id === item.id && 'bg-[#F5F5F5] border-l-2 border-[#0A0A0A]'
+                            'p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50/60 transition-colors duration-150',
+                            selectedItem?.id === item.id && 'bg-[#E8F7F1]/30 border-l-4 border-[#10B981]'
                           )}
                         >
                           <div className="space-y-1 min-w-0 flex-1 pr-4">
                             <div className="flex items-center space-x-2">
-                              <span className="text-[12px] font-medium text-[#525252] tabular-nums">
-                                {formatDisplayDate(item.date)} • {item.time}
+                              <span className="text-xs font-semibold text-[#64748B] tabular-nums">
+                                {formatDisplayDate(item.date)} &bull; {item.time}
                               </span>
-                              <span className="text-[12px] font-semibold text-[#0A0A0A] truncate">
-                                • {item.projectName}
+                              <span className="text-xs font-bold text-[#1F2937] truncate">
+                                &bull; {item.projectName}
                               </span>
                               <span
                                 className={cn(
-                                  'text-[12px] font-medium px-2 py-0.5 rounded-[6px]',
-                                  item.status === 'Approved' && 'bg-[#0A0A0A] text-white',
-                                  item.status === 'Scheduled' && 'border border-[#0A0A0A] text-[#0A0A0A] bg-transparent',
-                                  item.status === 'Paused' && 'border border-[#E5E5E5] bg-[#F5F5F5] text-[#525252]',
-                                  item.status === 'Draft' && 'bg-neutral-100 text-[#525252]'
+                                  'text-[10px] font-bold px-2 py-0.5 rounded-full',
+                                  item.status === 'Approved' && 'bg-[#E8F7F1] text-[#10B981]',
+                                  item.status === 'Scheduled' && 'bg-[#EFF6FF] text-[#3B82F6]',
+                                  item.status === 'Paused' && 'bg-[#FEF3C7] text-[#D97706]',
+                                  item.status === 'Draft' && 'bg-slate-100 text-[#64748B]'
                                 )}
                               >
                                 {item.status || 'Draft'}
                               </span>
                             </div>
-                            <h4 className="text-[14px] font-medium text-[#0A0A0A] truncate">{item.title}</h4>
+                            <h4 className="text-xs font-bold text-[#1F2937] truncate">{item.title}</h4>
                           </div>
 
-                          <div className="flex items-center space-x-2 shrink-0">
-                            <span className="text-[12px] font-medium text-[#525252] border border-[#E5E5E5] rounded-[6px] px-2 py-0.5 flex items-center space-x-1">
-                              <PIcon className="w-3.5 h-3.5 text-[#0A0A0A]" />
+                          <div className="flex items-center space-x-2.5 shrink-0">
+                            <span className="text-xs font-semibold text-[#1F2937] border border-[#EDF0F2] bg-white rounded-xl px-2.5 py-1 flex items-center space-x-1.5 shadow-xs">
+                              <PIcon className="w-3.5 h-3.5 text-[#10B981]" />
                               <span>{pLabel}</span>
                             </span>
                             <span
                               className={cn(
-                                'text-[12px] font-medium rounded-[6px] px-2 py-0.5',
+                                'text-[11px] font-bold rounded-lg px-2 py-1',
                                 item.isPaid
-                                  ? 'bg-[#0A0A0A] text-white'
-                                  : 'border border-[#E5E5E5] text-[#525252]'
+                                  ? 'bg-[#E8F7F1] text-[#10B981]'
+                                  : 'border border-[#EDF0F2] text-[#64748B]'
                               )}
                             >
                               {item.isPaid ? 'Paid' : 'Organic'}
@@ -1710,7 +1744,7 @@ export function CalendarPage() {
 
               {/* Static Sticky Inspector on Desktop >=1280px (xl:block) */}
               {isInspectorOpen && selectedItem && (
-                <div className="hidden xl:block w-[300px] min-w-[300px] max-w-[300px] shrink-0">
+                <div className="hidden xl:block w-[320px] min-w-[320px] max-w-[320px] shrink-0">
                   <div className="sticky top-6 self-start max-h-[calc(100vh-4rem)] overflow-y-auto pr-1">
                     <ItemInspector
                       item={selectedItem}
@@ -1741,16 +1775,16 @@ export function CalendarPage() {
           </div>
         )}
 
-        {/* 4. TABLET RIGHT DRAWER (768px - 1279px) */}
+        {/* 5. TABLET RIGHT DRAWER (768px - 1279px) */}
         {isInspectorOpen && selectedItem && (
           <div className="hidden md:block xl:hidden">
             {/* Backdrop */}
             <div
-              className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-150"
+              className="fixed inset-0 bg-slate-900/40 z-40 transition-opacity duration-150 backdrop-blur-xs"
               onClick={() => setIsInspectorOpen(false)}
             />
             {/* Slide-in Panel */}
-            <div className="fixed top-0 right-0 bottom-0 z-50 w-88 max-w-[90vw] bg-white border-l border-[#E5E5E5] p-4 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-150">
+            <div className="fixed top-0 right-0 bottom-0 z-50 w-88 max-w-[90vw] bg-white border-l border-[#EDF0F2] p-5 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-150">
               <ItemInspector
                 item={selectedItem}
                 onClose={() => setIsInspectorOpen(false)}
@@ -1775,18 +1809,18 @@ export function CalendarPage() {
           </div>
         )}
 
-        {/* 5. MOBILE BOTTOM SHEET (<768px) */}
+        {/* 6. MOBILE BOTTOM SHEET (<768px) */}
         {isInspectorOpen && selectedItem && (
           <div className="block md:hidden">
             {/* Backdrop */}
             <div
-              className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-150"
+              className="fixed inset-0 bg-slate-900/40 z-40 transition-opacity duration-150 backdrop-blur-xs"
               onClick={() => setIsInspectorOpen(false)}
             />
             {/* Sliding Bottom Sheet */}
-            <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] bg-white rounded-t-[16px] border-t border-[#E5E5E5] shadow-2xl p-4 overflow-y-auto pb-12 animate-in slide-in-from-bottom duration-150">
+            <div className="fixed inset-x-0 bottom-0 z-50 max-h-[85vh] bg-white rounded-t-2xl border-t border-[#EDF0F2] shadow-2xl p-5 overflow-y-auto pb-12 animate-in slide-in-from-bottom duration-150">
               {/* Grab Bar */}
-              <div className="w-10 h-1 bg-[#E5E5E5] rounded-full mx-auto mb-3" />
+              <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-4" />
               <ItemInspector
                 item={selectedItem}
                 onClose={() => setIsInspectorOpen(false)}
@@ -1811,20 +1845,20 @@ export function CalendarPage() {
           </div>
         )}
 
-        {/* 6. DAY CELL "+N MORE" MODAL POPOVER */}
+        {/* 7. DAY CELL "+N MORE" MODAL POPOVER */}
         {popoverDate && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-150"
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-150"
               onClick={() => setPopoverDate(null)}
             />
-            <div className="relative bg-white border border-[#E5E5E5] p-5 rounded-[10px] max-w-md w-full space-y-4 shadow-xl z-10 animate-in zoom-in-95 duration-150 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-2">
+            <div className="relative bg-white border border-[#EDF0F2] p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl z-10 animate-in zoom-in-95 duration-150 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#EDF0F2] pb-3">
                 <div>
-                  <h3 className="text-[14px] font-semibold text-[#0A0A0A]">
-                    All Scheduled Items
+                  <h3 className="text-sm font-bold text-[#1F2937]">
+                    Scheduled Deliverables
                   </h3>
-                  <p className="text-[12px] text-[#737373] tabular-nums">
+                  <p className="text-xs text-[#64748B] tabular-nums mt-0.5">
                     {formatDisplayDate(popoverDate)}
                   </p>
                 </div>
@@ -1832,7 +1866,7 @@ export function CalendarPage() {
                   type="button"
                   aria-label="Close popover"
                   onClick={() => setPopoverDate(null)}
-                  className="p-1 hover:text-[#0A0A0A] text-[#737373] rounded-[6px] transition-colors cursor-pointer"
+                  className="p-1 hover:text-[#1F2937] text-[#64748B] rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1859,7 +1893,7 @@ export function CalendarPage() {
           </div>
         )}
 
-        {/* 7. CONFIRMATION DIALOG (Pause & Cancel) */}
+        {/* 8. CONFIRMATION DIALOG (Pause & Cancel) */}
         <ConfirmationModal
           isOpen={confirmModal.isOpen}
           title={

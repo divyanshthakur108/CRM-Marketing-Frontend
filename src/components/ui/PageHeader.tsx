@@ -28,24 +28,24 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <div
       className={cn(
-        'w-full bg-white border-b border-[#E5E5E5] pb-4 pt-1 transition-all',
-        sticky && 'sticky top-0 z-20 bg-white/95 backdrop-blur-xs',
+        'w-full bg-app-surface border-b border-app-border pb-4 pt-1 transition-all',
+        sticky && 'sticky top-0 z-20 bg-app-surface/95 backdrop-blur-xs',
         className
       )}
     >
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav aria-label="Breadcrumb" className="flex items-center space-x-1.5 text-[12px] text-[#737373] mb-2">
+        <nav aria-label="Breadcrumb" className="flex items-center space-x-1.5 text-caption-text text-ink-muted mb-2">
           {breadcrumbs.map((crumb, idx) => {
             const isLast = idx === breadcrumbs.length - 1;
             return (
               <React.Fragment key={crumb.label}>
-                {idx > 0 && <span className="text-[#A3A3A3]">/</span>}
+                {idx > 0 && <span className="text-ink-subtle">/</span>}
                 {crumb.href && !isLast ? (
-                  <a href={crumb.href} className="hover:text-[#0A0A0A] transition-colors">
+                  <a href={crumb.href} className="hover:text-ink transition-colors">
                     {crumb.label}
                   </a>
                 ) : (
-                  <span className={cn(isLast && 'text-[#0A0A0A] font-medium')}>{crumb.label}</span>
+                  <span className={cn(isLast && 'text-ink font-medium')}>{crumb.label}</span>
                 )}
               </React.Fragment>
             );
@@ -56,13 +56,13 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-[24px] font-semibold tracking-tight text-[#0A0A0A] leading-tight">
+            <h1 className="text-title-page font-semibold tracking-tight text-ink leading-tight">
               {title}
             </h1>
             {badges && <div className="flex flex-wrap items-center gap-2">{badges}</div>}
           </div>
           {description && (
-            <p className="text-[14px] text-[#525252] leading-normal line-clamp-1">
+            <p className="text-body-default text-ink-muted leading-normal line-clamp-1">
               {description}
             </p>
           )}

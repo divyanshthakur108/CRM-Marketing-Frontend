@@ -26,21 +26,27 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const baseStyles =
-      'inline-flex items-center justify-center font-medium rounded-[8px] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A0A0A] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 select-none cursor-pointer';
+      'inline-flex items-center justify-center font-medium rounded-control transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer';
 
     const variants = {
-      primary: 'bg-[#0A0A0A] text-white hover:bg-[#171717] active:bg-[#262626] border border-[#0A0A0A] shadow-xs',
-      secondary: 'bg-white text-[#0A0A0A] border border-[#E5E5E5] hover:bg-[#F5F5F5] active:bg-neutral-100 shadow-xs',
-      outline: 'bg-white text-[#0A0A0A] border border-[#E5E5E5] hover:bg-[#F5F5F5] hover:border-[#A3A3A3] shadow-xs',
-      ghost: 'bg-transparent text-[#0A0A0A] hover:bg-[#F5F5F5] active:bg-neutral-100',
-      destructive: 'bg-white text-[#B91C1C] border border-[#FECACA] hover:bg-[#FEF2F2] active:bg-red-100',
-      link: 'text-[#0A0A0A] underline-offset-4 hover:underline p-0 h-auto font-normal',
+      primary:
+        'bg-zinc-900 text-white hover:bg-zinc-800 active:bg-zinc-950 border border-zinc-950 shadow-xs',
+      secondary:
+        'bg-white text-zinc-900 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 active:bg-zinc-100 shadow-xs',
+      outline:
+        'bg-transparent text-zinc-900 border border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300 shadow-xs',
+      ghost:
+        'bg-transparent text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 active:bg-zinc-200/60',
+      destructive:
+        'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 border border-transparent shadow-xs',
+      link:
+        'text-zinc-900 underline-offset-4 hover:underline p-0 h-auto font-normal',
     };
 
     const sizes = {
       sm: 'h-[32px] px-3 text-[12px] gap-1.5',
-      md: 'h-[40px] px-4 text-[14px] gap-2',
-      lg: 'h-[48px] px-6 text-[15px] gap-2.5',
+      md: 'h-[38px] px-4 text-[13px] gap-2',
+      lg: 'h-[44px] px-5 text-[14px] gap-2.5',
     };
 
     return (

@@ -57,6 +57,9 @@ import {
   Film,
   Layers,
   X,
+  Building2,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { AiStudioWorkflowView } from '../components/studio/AiStudioWorkflowView';
 
@@ -81,6 +84,8 @@ export function CreativeStudioPage() {
   const generateCaptionsMutation = useGenerateCaptions();
 
   // Selection & filter state
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [isAdvancedToolsOpen, setIsAdvancedToolsOpen] = useState(false);
   const [selectedCreativeId, setSelectedCreativeId] = useState<string | null>(null);
   const [selectedRatio, setSelectedRatio] = useState<'1:1' | '4:5' | '9:16'>('4:5');
   const [creativeFilter, setCreativeFilter] = useState<'ALL' | 'REEL' | 'POSTER'>('ALL');
@@ -227,6 +232,7 @@ export function CreativeStudioPage() {
 
   // Project ID for media lookup & catalog links
   const projectIdStr = useMemo(() => {
+    if (selectedProjectId) return selectedProjectId;
     if (activeCreative?.projectId) {
       return typeof activeCreative.projectId === 'object'
         ? activeCreative.projectId._id
@@ -236,7 +242,7 @@ export function CreativeStudioPage() {
       return allProjects[0]._id || allProjects[0].id;
     }
     return undefined;
-  }, [activeCreative, allProjects]);
+  }, [selectedProjectId, activeCreative, allProjects]);
 
   const { approvedMedia: projectMedia = [] } = useProjectMedia(projectIdStr, {
     consentedOnly: true,
@@ -553,11 +559,13 @@ export function CreativeStudioPage() {
       if (timer2) clearTimeout(timer2);
       if (timer3) clearTimeout(timer3);
       setIsGeneratingReel(false);
-      const msg =
+      const msg: string =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data
-              ?.error?.message
-          : (err as any)?.message || 'Generation failed';
+              ?.error?.message || 'Generation failed'
+          : err instanceof Error
+          ? err.message
+          : 'Generation failed';
 
       setJobProgressStep(msg?.toLowerCase()?.includes('block') ? 'blocked' : 'failed');
       setJobProgressReason(msg);
@@ -610,10 +618,13 @@ export function CreativeStudioPage() {
       });
       setIsPresenterModalOpen(false);
     } catch (err: unknown) {
-      const msg =
+      const msg: string =
         err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-          : (err as any)?.message || 'Failed to generate presenter video';
+          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ||
+            'Failed to generate presenter video'
+          : err instanceof Error
+          ? err.message
+          : 'Failed to generate presenter video';
       toast({ title: 'Walkthrough Generation Failed', message: msg, type: 'error' });
     } finally {
       setIsGeneratingPresenterVideo(false);
@@ -643,10 +654,13 @@ export function CreativeStudioPage() {
         type: 'success',
       });
     } catch (err: unknown) {
-      const msg =
+      const msg: string =
         err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message
-          : (err as any)?.message || 'Failed to generate captions';
+          ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error?.message ||
+            'Failed to generate captions'
+          : err instanceof Error
+          ? err.message
+          : 'Failed to generate captions';
       toast({ title: 'Caption Generation Failed', message: msg, type: 'error' });
     } finally {
       setIsGeneratingCaptions(false);
@@ -693,134 +707,167 @@ export function CreativeStudioPage() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
-      {/* 1. Header Section: Modern SaaS Style Header */}
-      <div className="sticky top-0 z-20 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3 bg-white/95 backdrop-blur-md border-b border-border shadow-xs transition-all">
+      {/* 1. Header Section: Simplified Header */}
+      <div className="sticky top-0 z-20 -mt-6 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-3.5 bg-white/95 backdrop-blur-md border-b border-app-border shadow-xs transition-all">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Title & Engine Status Indicators */}
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-lg sm:text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
-                <span>Creative Studio</span>
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-neutral-100 text-neutral-700 border border-neutral-200 tracking-wide uppercase">
-                  Production Suite
-                </span>
+          {/* Title & Subtitle */}
+          <div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                Create Marketing Content
               </h1>
-
-              {/* Status Badges with Small Animated Pulsing Indicators */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                {/* Poster Engine */}
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                  </span>
-                  <span>Poster Engine</span>
-                </div>
-
-                {/* Video Engine */}
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-                  </span>
-                  <span>Video Engine</span>
-                </div>
-
-                {/* AI Enhancement */}
-                <div
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium text-xs border transition-colors ${
-                    aiHealth?.configured
-                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                      : 'bg-neutral-100 text-neutral-600 border-neutral-200'
-                  }`}
-                >
-                  <span className="relative flex h-2 w-2">
-                    {aiHealth?.configured && (
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    )}
-                    <span
-                      className={`relative inline-flex rounded-full h-2 w-2 ${
-                        aiHealth?.configured ? 'bg-emerald-600' : 'bg-neutral-400'
-                      }`}
-                    ></span>
-                  </span>
-                  <span>{aiHealth?.configured ? 'AI Engine: Ready' : 'AI Engine: Standby'}</span>
-                </div>
-              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>{studioTab === 'AI_STUDIO' ? 'Guided 6-Step Workflow' : 'Review & Compliance'}</span>
+              </span>
             </div>
-
-            <p className="text-xs text-text-secondary">
-              Real estate creative production platform for client-ready posters, AI marketing shots, and Instagram reels.
+            <p className="text-xs text-slate-500 mt-0.5">
+              Turn your property photos into professional marketing images and reels.
             </p>
           </div>
 
-          {/* Action Buttons: Organized with High Visual Hierarchy */}
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {/* AI Creation Capabilities */}
-            <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+          {/* Controls: Property Selector & Actions */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Property Selector */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-control px-3 py-1.5 text-xs shadow-2xs">
+              <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+              <span className="text-slate-500 font-medium">Property:</span>
+              <select
+                value={selectedProjectId || projectIdStr || ''}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="bg-transparent font-semibold text-slate-900 focus:outline-none cursor-pointer max-w-[200px] truncate"
+              >
+                {allProjects.map((p) => {
+                  const id = p._id || p.id || '';
+                  return (
+                    <option key={id} value={id}>
+                      {p.name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Advanced Tools Collapsible Menu */}
+            <div className="relative">
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (projectVideos.length > 0 && !selectedVideoAssetId) {
-                    setSelectedVideoAssetId(projectVideos[0]._id || projectVideos[0].id || '');
-                  }
-                  setIsExtendModalOpen(true);
-                }}
-                leftIcon={<Video className="w-3.5 h-3.5 text-neutral-700" />}
-                className="h-8 text-xs font-semibold hover:bg-white transition-all shadow-none hover:shadow-xs"
+                onClick={() => setIsAdvancedToolsOpen(!isAdvancedToolsOpen)}
+                leftIcon={<SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />}
+                rightIcon={
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                      isAdvancedToolsOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                }
+                className="h-9 text-xs font-medium bg-white hover:bg-slate-50"
               >
-                Extend Video
+                Advanced Tools
               </Button>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsPresenterModalOpen(true)}
-                leftIcon={<UserCheck className="w-3.5 h-3.5 text-purple-600" />}
-                className="h-8 text-xs font-semibold hover:bg-white text-purple-900 transition-all shadow-none hover:shadow-xs"
-              >
-                Presenter Walkthrough
-              </Button>
+              {isAdvancedToolsOpen && (
+                <div className="absolute right-0 top-full mt-1.5 w-64 bg-white rounded-xl shadow-lg border border-slate-200 p-1.5 z-30 space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (projectVideos.length > 0 && !selectedVideoAssetId) {
+                        setSelectedVideoAssetId(projectVideos[0]._id || projectVideos[0].id || '');
+                      }
+                      setIsExtendModalOpen(true);
+                      setIsAdvancedToolsOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Video className="w-4 h-4 text-slate-500" />
+                    <div>
+                      <div className="font-semibold text-slate-900">Extend Video</div>
+                      <div className="text-[10px] text-slate-500">Camera panning motion extensions</div>
+                    </div>
+                  </button>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsCaptionModalOpen(true)}
-                leftIcon={<FileText className="w-3.5 h-3.5 text-blue-600" />}
-                className="h-8 text-xs font-semibold hover:bg-white text-blue-900 transition-all shadow-none hover:shadow-xs"
-              >
-                5-Step Captions
-              </Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPresenterModalOpen(true);
+                      setIsAdvancedToolsOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <UserCheck className="w-4 h-4 text-purple-600" />
+                    <div>
+                      <div className="font-semibold text-slate-900">Presenter Walkthrough</div>
+                      <div className="text-[10px] text-slate-500">4-Act avatar video with voiceover</div>
+                    </div>
+                  </button>
 
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsOccasionModalOpen(true)}
-                leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-600" />}
-                className="h-8 text-xs font-semibold hover:bg-white text-amber-900 transition-all shadow-none hover:shadow-xs"
-              >
-                Occasions
-                <span className="ml-1 px-1.5 py-0.2 rounded text-[9px] bg-amber-100 text-amber-800 font-bold border border-amber-300">
-                  Phase 2
-                </span>
-              </Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCaptionModalOpen(true);
+                      setIsAdvancedToolsOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <div className="font-semibold text-slate-900">Advanced Captions</div>
+                      <div className="text-[10px] text-slate-500">Platform-optimized ad copy</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOccasionModalOpen(true);
+                      setIsAdvancedToolsOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <div>
+                      <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+                        <span>Occasions</span>
+                        <span className="text-[9px] px-1 rounded bg-amber-100 text-amber-800 font-bold">
+                          Phase 2
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500">Festival & seasonal campaigns</div>
+                    </div>
+                  </button>
+
+                  <div className="border-t border-slate-100 my-1" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleOpenGenerateModal();
+                      setIsAdvancedToolsOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <div className="font-semibold text-slate-900">Generate Catalog Creatives</div>
+                      <div className="text-[10px] text-slate-500">Render posters & catalog sets</div>
+                    </div>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Contextual actions for selected creative in Catalog view */}
             {activeCreative && studioTab === 'CATALOG_CREATIVES' && (
-              <div className="flex items-center gap-1.5 pl-1 border-l border-border">
+              <div className="flex items-center gap-1.5 pl-1 border-l border-app-border">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setIsRegenerateModalOpen(true)}
                   leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
-                  className="h-8 text-xs font-semibold hover:bg-neutral-100"
+                  className="h-9 text-xs font-semibold hover:bg-slate-50"
                 >
                   Regenerate
                 </Button>
@@ -831,45 +878,30 @@ export function CreativeStudioPage() {
                   onClick={handleDownload}
                   leftIcon={<Download className="w-3.5 h-3.5" />}
                   disabled={!activeFile || isFailed || isGenerating}
-                  className="h-8 text-xs font-semibold hover:bg-neutral-100"
+                  className="h-9 text-xs font-semibold hover:bg-slate-50"
                 >
                   Download
                 </Button>
               </div>
             )}
-
-            {/* Primary High-Contrast Action Button: Generate Creatives */}
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleOpenGenerateModal}
-              leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-400" />}
-              className="h-8.5 px-4 text-xs font-semibold bg-neutral-900 text-white hover:bg-black shadow-xs transition-all"
-            >
-              <span className="tracking-wide">Generate Creatives</span>
-            </Button>
           </div>
         </div>
       </div>
 
-      {/* Studio View Mode Switcher */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2 rounded-xl border border-border shadow-xs">
-        <div className="flex items-center p-1 bg-neutral-100 rounded-lg border border-neutral-200/80">
+      {/* Mode Switcher: Image & Video Creator vs Creative Reviews */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2 rounded-xl border border-app-border shadow-xs">
+        <div className="flex items-center p-1 bg-slate-100 rounded-lg border border-slate-200/80">
           <button
             type="button"
             onClick={() => setStudioTab('AI_STUDIO')}
             className={`h-8.5 px-4 rounded-md text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
               studioTab === 'AI_STUDIO'
-                ? 'bg-white text-neutral-900 shadow-xs border border-neutral-200/80 font-bold'
-                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/50'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>AI Image &amp; Reel Suite</span>
-            <span className="px-1.5 py-0.2 text-[9px] rounded-full bg-neutral-900 text-white font-bold uppercase tracking-wider">
-              15-Shot Suite
-            </span>
+            <Sparkles className="w-3.5 h-3.5 text-brand-primary" />
+            <span>Image &amp; Video Creator</span>
           </button>
 
           <button
@@ -877,30 +909,30 @@ export function CreativeStudioPage() {
             onClick={() => setStudioTab('CATALOG_CREATIVES')}
             className={`h-8.5 px-4 rounded-md text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer ${
               studioTab === 'CATALOG_CREATIVES'
-                ? 'bg-white text-neutral-900 shadow-xs border border-neutral-200/80 font-bold'
-                : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/50'
+                ? 'bg-white text-slate-900 shadow-xs border border-slate-200/80 font-bold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-neutral-700" />
-            <span>Catalog Creative Reviews</span>
-            <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-neutral-200 text-neutral-800 font-bold">
+            <Layers className="w-3.5 h-3.5 text-slate-700" />
+            <span>Creative Reviews</span>
+            <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-200 text-slate-800 font-bold">
               {serverCreatives.length}
             </span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-text-secondary px-2">
+        <div className="flex items-center gap-2 text-xs text-slate-500 px-2">
           {studioTab === 'AI_STUDIO' ? (
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="font-medium text-neutral-700">
-                Automated 6-Step Pipeline: Photos &bull; Vision Analysis &bull; 15 Marketing Images &bull; 9:16 Vertical Reels
+              <span className="font-medium text-slate-700">
+                Guided 6-Step Workflow: Upload Photos &bull; Analyze &bull; Generate &bull; Select &bull; Create Reel &bull; Preview
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-neutral-700" />
-              <span className="font-medium text-neutral-700">
+              <span className="w-2 h-2 rounded-full bg-slate-700" />
+              <span className="font-medium text-slate-700">
                 6-Fact Verification &amp; Client Compliance Review Workspace
               </span>
             </div>
@@ -912,6 +944,7 @@ export function CreativeStudioPage() {
         <AiStudioWorkflowView
           projects={allProjects}
           selectedProjectId={projectIdStr}
+          onSelectProject={setSelectedProjectId}
         />
       ) : serverCreatives.length === 0 && !isLoadingCreatives ? (
         <EmptyState
@@ -2654,7 +2687,7 @@ export function CreativeStudioPage() {
               <label className="text-xs font-semibold text-text-primary uppercase mb-1 block">Language &amp; Accent</label>
               <select
                 value={presenterLanguage}
-                onChange={(e) => setPresenterLanguage(e.target.value as any)}
+                onChange={(e) => setPresenterLanguage(e.target.value as 'Hinglish' | 'English' | 'Hindi')}
                 className="w-full text-xs p-2 rounded border border-border bg-white"
               >
                 <option value="Hinglish">Hinglish (Recommended for Tricity / Mohali)</option>
@@ -2667,7 +2700,7 @@ export function CreativeStudioPage() {
               <label className="text-xs font-semibold text-text-primary uppercase mb-1 block">Style Preset</label>
               <select
                 value={selectedStylePreset}
-                onChange={(e) => setSelectedStylePreset(e.target.value as any)}
+                onChange={(e) => setSelectedStylePreset(e.target.value as 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI')}
                 className="w-full text-xs p-2 rounded border border-border bg-white"
               >
                 <option value="HERITAGE_LUXURY">Heritage Luxury (Gold / GDPL Style)</option>
@@ -2726,7 +2759,7 @@ export function CreativeStudioPage() {
               <span className="text-xs font-semibold text-blue-900 uppercase">Tone Preset:</span>
               <select
                 value={selectedStylePreset}
-                onChange={(e) => setSelectedStylePreset(e.target.value as any)}
+                onChange={(e) => setSelectedStylePreset(e.target.value as 'HERITAGE_LUXURY' | 'HIGH_GROWTH_ROI')}
                 className="text-xs p-1.5 rounded border border-blue-300 bg-white"
               >
                 <option value="HERITAGE_LUXURY">Heritage Luxury (GDPL Style)</option>
