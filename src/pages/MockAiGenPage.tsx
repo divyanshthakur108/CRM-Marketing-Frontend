@@ -1072,7 +1072,7 @@ export const MockAiGenPage: React.FC = () => {
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-slate-950/80 p-3 rounded-lg border border-amber-500/20">
                     <div>
                       <span className="text-slate-500 block">Candidate Model</span>
-                      <strong className="text-white font-mono">gen3a_turbo (Runway Gen-3 Alpha Turbo)</strong>
+                      <strong className="text-white font-mono">gen4_turbo (Runway Gen-4 Turbo)</strong>
                     </div>
                     <div>
                       <span className="text-slate-500 block">Estimated Credits</span>
@@ -1149,7 +1149,7 @@ export const MockAiGenPage: React.FC = () => {
                 {isGeneratingRunway ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    Generating Runway Clip (gen3a_turbo)...
+                    Generating Runway Clip (gen4_turbo)...
                   </>
                 ) : (
                   <>
