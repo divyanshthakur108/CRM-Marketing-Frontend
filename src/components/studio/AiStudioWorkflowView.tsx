@@ -444,8 +444,12 @@ export function AiStudioWorkflowView({
         type: 'success',
       });
       // Automatically trigger vision analysis and proceed to step 2
-      await handleAnalyzeProperty();
-      setActiveStep(2);
+      try {
+        await handleAnalyzeProperty();
+        setActiveStep(2);
+      } catch {
+        // Photos uploaded successfully; user can review or trigger analysis manually
+      }
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
       const msg =
@@ -555,10 +559,13 @@ export function AiStudioWorkflowView({
     } catch (err: unknown) {
       setIsSynthesizingReel(false);
       setReelProgressText('');
-      const axiosErr = err as { response?: { data?: { error?: { message?: string } } } };
-      const msg =
+      const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: { message?: string } } } };
+      let msg =
         axiosErr.response?.data?.error?.message ||
         (err instanceof Error ? err.message : 'Reel synthesis failed');
+      if (axiosErr.code === 'ERR_NETWORK' || msg === 'Network Error') {
+        msg = 'Cannot connect to RealCRM API server on port 5000. Please ensure the backend server is running.';
+      }
       toast({ title: 'Reel Synthesis Failed', message: msg, type: 'error' });
     }
   };

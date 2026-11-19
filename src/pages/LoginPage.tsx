@@ -97,9 +97,23 @@ export function LoginPage() {
       </h1>
 
       {/* 3. Subtitle */}
-      <p className="text-[14px] text-[#525252] mt-1 mb-6">
+      <p className="text-[14px] text-[#525252] mt-1 mb-4">
         Welcome back to your RealCRM workspace
       </p>
+
+      {/* Direct AI Lab Sandbox Access Pill */}
+      <div className="mb-6 p-3 bg-amber-50 border border-amber-200/80 rounded-lg text-left flex items-center justify-between shadow-sm">
+        <div>
+          <span className="text-[12px] font-bold text-amber-900 block">Mock AI Generation Lab</span>
+          <span className="text-[11px] text-amber-700/80 block">No login required to access AI lab & ads</span>
+        </div>
+        <Link
+          to="/mock-ai-gen"
+          className="text-[11px] font-semibold bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-md transition inline-flex items-center gap-1 shadow-sm"
+        >
+          Open Lab →
+        </Link>
+      </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">

@@ -13,19 +13,19 @@ export function AnnouncementBar({ onLearnMore }: AnnouncementBarProps) {
   return (
     <aside
       aria-label="Product Announcement"
-      className="relative z-50 bg-[#0A0A0A] text-white text-[13px] font-medium border-b border-neutral-800 transition-all duration-200"
+      className="relative z-50 bg-gradient-to-r from-neutral-950 via-slate-900 to-neutral-950 text-white text-[12.5px] font-medium border-b border-amber-500/20 shadow-xs"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-4">
         {/* Centered Announcement Message */}
-        <div className="flex-1 flex items-center justify-center gap-2 text-center text-neutral-300">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-200 text-[11px] font-semibold tracking-wide uppercase border border-neutral-700">
-            <Sparkles className="w-3 h-3 text-amber-400" />
-            New in RealCRM
+        <div className="flex-1 flex items-center justify-center gap-2.5 text-center text-slate-300">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/20 to-emerald-500/20 text-amber-300 text-[10.5px] font-bold tracking-wider uppercase border border-amber-500/30">
+            <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" />
+            New Release
           </span>
-          <span className="hidden sm:inline text-neutral-200">
-            Video Lab 2.0 &amp; AI Creative Studio are now live for luxury real estate teams.
+          <span className="hidden sm:inline text-slate-200">
+            Video Lab 2.0 &amp; Creative Studio V3 are live — synthesize 1080×1920 luxury reels in seconds.
           </span>
-          <span className="sm:hidden text-neutral-200">
+          <span className="sm:hidden text-slate-200 font-medium">
             Video Lab 2.0 is live!
           </span>
           <a
@@ -36,9 +36,9 @@ export function AnnouncementBar({ onLearnMore }: AnnouncementBarProps) {
                 onLearnMore();
               }
             }}
-            className="inline-flex items-center gap-1 text-white font-semibold underline underline-offset-4 decoration-neutral-500 hover:decoration-white hover:text-white transition-colors ml-1"
+            className="inline-flex items-center gap-1 text-amber-300 hover:text-amber-200 font-semibold underline underline-offset-4 decoration-amber-400/40 hover:decoration-amber-300 transition-colors ml-1 text-[12px]"
           >
-            Learn more
+            Explore features
             <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
@@ -48,12 +48,11 @@ export function AnnouncementBar({ onLearnMore }: AnnouncementBarProps) {
           type="button"
           onClick={() => setIsVisible(false)}
           aria-label="Dismiss announcement banner"
-          className="p-1 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400"
         >
-          <X className="w-4 h-4" />
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
     </aside>
   );
 }
-

@@ -304,6 +304,7 @@ export function useUploadStudioPhotos() {
       return res.data.data;
     },
     onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ['media'] });
       queryClient.invalidateQueries({ queryKey: ['project-media', projectId] });
       queryClient.invalidateQueries({ queryKey: ['ai-studio-batches', projectId] });
     },
@@ -350,8 +351,10 @@ export function useSaveStudioImageToMedia() {
       return res.data.data;
     },
     onSuccess: (_, { batchId }) => {
-      queryClient.invalidateQueries({ queryKey: ['ai-studio-batch', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['media'] });
       queryClient.invalidateQueries({ queryKey: ['project-media'] });
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batch', batchId] });
+      queryClient.invalidateQueries({ queryKey: ['ai-studio-batches'] });
     },
   });
 }

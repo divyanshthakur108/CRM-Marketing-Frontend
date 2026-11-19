@@ -101,6 +101,9 @@ const SettingsPage = lazy(() =>
 const LandingPage = lazy(() =>
   import('./pages/LandingPage').then((m) => ({ default: m.LandingPage }))
 );
+const MockAiGenPage = lazy(() =>
+  import('./pages/MockAiGenPage').then((m) => ({ default: m.MockAiGenPage }))
+);
 const NotFoundPage = lazy(() =>
   import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
 );
@@ -238,6 +241,9 @@ export default function App() {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/profile" element={<Navigate to="/settings" replace />} />
                 </Route>
+
+                {/* Development-Only Direct Sandbox Route (No Auth Barrier) */}
+                <Route path="/mock-ai-gen" element={<MockAiGenPage />} />
 
                 {/* 404 Catch-All Route */}
                 <Route path="*" element={<NotFoundPage />} />
