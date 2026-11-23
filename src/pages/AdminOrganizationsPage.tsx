@@ -16,6 +16,7 @@ import {
   User,
   Filter,
   Clapperboard,
+  FlaskConical,
 } from 'lucide-react';
 import axios from 'axios';
 import { api } from '../lib/api';
@@ -221,6 +222,11 @@ export function AdminOrganizationsPage() {
           <Link to="/admin/video-lab">
             <Button variant="secondary" size="sm" leftIcon={<Clapperboard className="w-4 h-4" />}>
               Video Lab
+            </Button>
+          </Link>
+          <Link to="/admin/creative-lab">
+            <Button variant="secondary" size="sm" leftIcon={<FlaskConical className="w-4 h-4" />}>
+              Creative Lab
             </Button>
           </Link>
           <Button
