@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brain, Code2, Film, FlaskConical, ImageIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Brain, Clapperboard, Code2, Film, FlaskConical, ImageIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -141,6 +141,22 @@ interface LabAsset {
   analysisMs?: number;
 }
 
+interface LabResult {
+  _id: string;
+  title: string;
+  notes: string;
+  aiDisclosure: string;
+  tags: string[];
+  verdict: 'USE' | 'CHECK' | 'DONT_USE';
+  url: string;
+  filename: string;
+  sizeBytes: number;
+  durationSeconds?: number;
+  previewThumb?: string;
+  source: 'poc-script' | 'upload';
+  createdAt: string;
+}
+
 interface GeminiUsage {
   totalCount: number;
   limit: number;
@@ -260,7 +276,11 @@ export const AdminCreativeLabPage = () => {
     queryKey: ['creative-lab-project', projectId],
     enabled: Boolean(projectId),
     queryFn: async () =>
-      (await api.get(`/admin/creative-lab/projects/${projectId}`)).data.data as { project: LabProject; assets: LabAsset[] },
+      (await api.get(`/admin/creative-lab/projects/${projectId}`)).data.data as {
+        project: LabProject;
+        assets: LabAsset[];
+        results?: LabResult[];
+      },
     refetchInterval: (q) => {
       const assets = (q.state.data as { assets: LabAsset[] } | undefined)?.assets || [];
       return assets.some((a) => a.status === 'QUEUED' || a.status === 'ANALYZING') ? 3000 : false;
@@ -280,6 +300,7 @@ export const AdminCreativeLabPage = () => {
 
   const project = detail.data?.project;
   const assets = detail.data?.assets || [];
+  const results = detail.data?.results || [];
   const selected = assets.find((a) => a._id === selectedAssetId) || null;
   const ideaNames = ideas.data || {};
   const showForm = editing || !projectId;
@@ -381,6 +402,16 @@ export const AdminCreativeLabPage = () => {
       await api.delete(`/admin/creative-lab/assets/${asset._id}`);
       if (selectedAssetId === asset._id) setSelectedAssetId(null);
       await queryClient.invalidateQueries({ queryKey: ['creative-lab-project', projectId] });
+    } catch (err) {
+      toast({ title: 'Could not remove', message: errMsg(err, ''), type: 'error' });
+    }
+  };
+
+  const removeResult = async (result: LabResult) => {
+    try {
+      await api.delete(`/admin/creative-lab/results/${result._id}`);
+      await queryClient.invalidateQueries({ queryKey: ['creative-lab-project', projectId] });
+      toast({ message: 'Removed from the page. The video stays in storage.', type: 'success' });
     } catch (err) {
       toast({ title: 'Could not remove', message: errMsg(err, ''), type: 'error' });
     }
@@ -600,6 +631,8 @@ export const AdminCreativeLabPage = () => {
             </Card>
           )}
 
+          {project && !showForm && <ResultsCard results={results} onRemove={removeResult} />}
+
           {selected && (
             <AssetDetail asset={selected} ideas={ideaNames} onReanalyze={() => reanalyze(selected)} onRemove={() => removeAsset(selected)} />
           )}
@@ -608,6 +641,81 @@ export const AdminCreativeLabPage = () => {
     </div>
   );
 };
+
+// ── Generated results ──────────────────────────────────────────────────────
+
+const verdictStyle: Record<LabResult['verdict'], { label: string; className: string }> = {
+  USE: { label: 'Good to use', className: 'bg-emerald-100 text-emerald-800' },
+  CHECK: { label: 'Check first', className: 'bg-amber-100 text-amber-800' },
+  DONT_USE: { label: "Don't use", className: 'bg-red-100 text-red-700' },
+};
+
+function ResultsCard({ results, onRemove }: { results: LabResult[]; onRemove: (r: LabResult) => void }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Clapperboard className="w-4 h-4" /> 4. Generated results ({results.length} videos)
+        </CardTitle>
+        <p className="text-xs text-neutral-500">
+          Finished reels made from this project's files. Published from <code>poc/creative-lab/results.json</code> with{' '}
+          <code>npm run creative-lab:publish</code>; videos are stored in the cloud, so every admin sees the same list.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {!results.length ? (
+          <p className="text-xs text-neutral-500">No generated videos for this project yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {results.map((r) => (
+              <div key={r._id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200">
+                <div className="bg-black">
+                  <video
+                    src={r.url}
+                    poster={r.previewThumb}
+                    controls
+                    preload="none"
+                    playsInline
+                    className="mx-auto aspect-[9/16] max-h-[480px] w-full object-contain"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col gap-2 p-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Pill className={verdictStyle[r.verdict].className}>{verdictStyle[r.verdict].label}</Pill>
+                    {r.durationSeconds !== undefined && <Pill className="bg-neutral-100 text-neutral-600">{fmtTime(r.durationSeconds)}</Pill>}
+                    <Pill className="bg-neutral-100 text-neutral-600">{formatSize(r.sizeBytes)}</Pill>
+                  </div>
+                  <p className="text-sm font-semibold leading-snug">{r.title}</p>
+                  {r.aiDisclosure && (
+                    <p className="rounded-md bg-violet-50 px-2 py-1 text-[11px] text-violet-800">
+                      <span className="font-semibold">AI used: </span>
+                      {r.aiDisclosure}
+                    </p>
+                  )}
+                  {r.notes && <p className="text-xs text-neutral-600">{r.notes}</p>}
+                  {!!r.tags.length && <Chips items={r.tags} />}
+                  <div className="mt-auto flex items-center justify-between pt-1 text-[11px] text-neutral-400">
+                    <span>
+                      {new Date(r.createdAt).toLocaleDateString()} · {r.source === 'poc-script' ? 'POC script' : 'Uploaded'}
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <a href={r.url} target="_blank" rel="noreferrer" className="underline hover:text-neutral-700">
+                        Open
+                      </a>
+                      <button onClick={() => onRemove(r)} className="flex items-center gap-1 hover:text-red-600">
+                        <Trash2 className="w-3 h-3" /> Remove
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── Project facts ──────────────────────────────────────────────────────────
 
