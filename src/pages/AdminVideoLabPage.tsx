@@ -673,6 +673,7 @@ export function AdminVideoLabPage() {
                 </Button>
                 <input
                   ref={clipInput}
+                  aria-label="Upload raw video clips"
                   type="file"
                   accept="video/mp4,video/quicktime,video/webm"
                   multiple
@@ -725,7 +726,7 @@ export function AdminVideoLabPage() {
               onRemove={() => setLogo(null)}
               disabled={Boolean(uploading)}
             />
-            <input ref={logoInput} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { handleFiles(e.target.files, 'logo'); e.target.value = ''; }} />
+            <input ref={logoInput} type="file" aria-label="Upload logo image" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { handleFiles(e.target.files, 'logo'); e.target.value = ''; }} />
 
             <FileRow
               icon={<Music className="w-3.5 h-3.5 text-[#737373]" />}
@@ -735,7 +736,7 @@ export function AdminVideoLabPage() {
               onRemove={() => setMusic(null)}
               disabled={Boolean(uploading)}
             />
-            <input ref={musicInput} type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav" className="hidden" onChange={(e) => { handleFiles(e.target.files, 'music'); e.target.value = ''; }} />
+            <input ref={musicInput} type="file" aria-label="Upload background music" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/aac,audio/wav" className="hidden" onChange={(e) => { handleFiles(e.target.files, 'music'); e.target.value = ''; }} />
 
             {/* Library B-roll (photos & past clips) */}
             <div className="border-t border-[#E5E5E5] pt-3 space-y-2">
@@ -775,6 +776,7 @@ export function AdminVideoLabPage() {
                 </div>
                 <input
                   ref={libraryInput}
+                  aria-label="Upload library photos and clips"
                   type="file"
                   accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm"
                   multiple

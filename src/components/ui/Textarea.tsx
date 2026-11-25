@@ -9,7 +9,10 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, helperText, id, ...props }, ref) => {
-    const textareaId = id || props.name;
+    // Fall back to a generated id so the <label htmlFor> always points at this textarea
+    const generatedId = React.useId();
+    const textareaId = id || props.name || generatedId;
+    const describedBy = error ? `${textareaId}-error` : helperText ? `${textareaId}-help` : undefined;
 
     return (
       <div className="w-full space-y-1.5 text-left">
@@ -24,6 +27,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           id={textareaId}
           ref={ref}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
           className={cn(
             'flex min-h-[80px] w-full bg-white px-3 py-2 text-[14px] text-[#0A0A0A] rounded-[8px] border border-[#E5E5E5] placeholder:text-[#A3A3A3] focus:outline-none focus:ring-2 focus:ring-[#0A0A0A] focus:ring-offset-1 disabled:cursor-not-allowed disabled:bg-[#F5F5F5] disabled:opacity-50 transition-all duration-150',
             error && 'border-[#B91C1C] focus:ring-[#B91C1C] bg-[#FEF2F2]/20',
@@ -32,7 +37,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {error && (
-          <p className="text-[12px] font-medium text-[#B91C1C] mt-1 flex items-center gap-1.5">
+          <p id={`${textareaId}-error`} className="text-[12px] font-medium text-[#B91C1C] mt-1 flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
@@ -42,7 +47,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           </p>
         )}
         {!error && helperText && (
-          <p className="text-[12px] text-[#737373] mt-1">{helperText}</p>
+          <p id={`${textareaId}-help`} className="text-[12px] text-[#737373] mt-1">{helperText}</p>
         )}
       </div>
     );
