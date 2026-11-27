@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brain, Clapperboard, Code2, Film, FlaskConical, ImageIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Brain, Check, Clapperboard, Wand2, Code2, Copy, Film, MapPin, Palette, FlaskConical, ImageIcon, Pencil, Plus, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { api } from '../lib/api';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -42,6 +42,30 @@ interface LabProject {
   brief?: ProjectBrief;
   briefError?: string;
   assetCount?: number;
+  brand?: { logoUrl: string; logoThumb?: string; filename: string };
+  places?: NearbyPlace[];
+  mapCards?: MapCard[];
+  createdAt: string;
+}
+
+type Direction = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
+const DIRECTIONS: Direction[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+interface NearbyPlace {
+  name: string;
+  direction?: Direction;
+  time?: { value: number; unit: 'min' | 'hr' };
+  distance?: { value: number; unit: 'km' | 'm' };
+}
+
+interface MapCard {
+  _id: string;
+  url: string;
+  prompt: string;
+  variant: number;
+  style?: 'flat' | '3d';
+  source: 'gemini' | 'cloudflare' | 'upload';
+  status: 'NEEDS_CHECK' | 'APPROVED' | 'REJECTED';
   createdAt: string;
 }
 
@@ -139,6 +163,38 @@ interface LabAsset {
   steps: Array<{ name: string; ms: number }>;
   error?: string;
   analysisMs?: number;
+  fixPlan?: {
+    orientation: Orientation;
+    tiltDegrees: number;
+    keystone: string;
+    exposure: string;
+    colourCast: string;
+    noise: string;
+    clutter: Array<{ what: string; where: string }>;
+    notes: string;
+  };
+  cleaned?: {
+    status: 'QUEUED' | 'WORKING' | 'READY' | 'FAILED' | 'APPROVED' | 'REJECTED';
+    url?: string;
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
+    previewThumb?: string;
+    fixes?: string[];
+    orientationOverride?: Orientation;
+    error?: string;
+    ms?: number;
+  };
+}
+
+type Orientation = 'ok' | 'upside_down' | 'turn_left' | 'turn_right';
+
+interface SetupCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+  usedFor: string;
+  fix: string;
 }
 
 interface LabResult {
@@ -261,6 +317,12 @@ export const AdminCreativeLabPage = () => {
     refetchInterval: 15000,
   });
 
+  const setup = useQuery({
+    queryKey: ['creative-lab-setup'],
+    queryFn: async () => (await api.get('/admin/creative-lab/setup')).data.data as SetupCheck[],
+    staleTime: 5 * 60 * 1000,
+  });
+
   const ideas = useQuery({
     queryKey: ['creative-lab-ideas'],
     queryFn: async () => (await api.get('/admin/creative-lab/ideas')).data.data as Record<string, string>,
@@ -283,7 +345,11 @@ export const AdminCreativeLabPage = () => {
       },
     refetchInterval: (q) => {
       const assets = (q.state.data as { assets: LabAsset[] } | undefined)?.assets || [];
-      return assets.some((a) => a.status === 'QUEUED' || a.status === 'ANALYZING') ? 3000 : false;
+      return assets.some(
+        (a) => a.status === 'QUEUED' || a.status === 'ANALYZING' || a.cleaned?.status === 'QUEUED' || a.cleaned?.status === 'WORKING'
+      )
+        ? 3000
+        : false;
     },
   });
 
@@ -522,7 +588,9 @@ export const AdminCreativeLabPage = () => {
             </CardContent>
           </Card>
 
+          {setup.data && <SetupCard checks={setup.data} />}
           {project && !showForm && <BriefCard project={project} />}
+          {project && !showForm && <BrandCard project={project} />}
         </div>
 
         {/* Right: uploads + files */}
@@ -613,6 +681,15 @@ export const AdminCreativeLabPage = () => {
                             </div>
                           )}
                           <Pill className={`absolute left-1.5 top-1.5 ${statusStyle[a.status]}`}>{statusLabel[a.status]}</Pill>
+                          {a.cleaned && ['READY', 'APPROVED', 'WORKING', 'QUEUED'].includes(a.cleaned.status) && (
+                            <Pill
+                              className={`absolute right-1.5 top-1.5 ${
+                                a.cleaned.status === 'APPROVED' ? 'bg-emerald-600 text-white' : a.cleaned.status === 'READY' ? 'bg-violet-100 text-violet-800' : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {a.cleaned.status === 'APPROVED' ? 'Cleaned ✓' : a.cleaned.status === 'READY' ? 'Cleaned: check' : 'Cleaning…'}
+                            </Pill>
+                          )}
                           {a.kind === 'video' && a.durationSeconds !== undefined && (
                             <Pill className="absolute bottom-1.5 right-1.5 bg-black/70 text-white">{fmtTime(a.durationSeconds)}</Pill>
                           )}
@@ -641,6 +718,559 @@ export const AdminCreativeLabPage = () => {
     </div>
   );
 };
+
+// ── Setup checklist (what this machine has) ────────────────────────────────
+
+function SetupCard({ checks }: { checks: SetupCheck[] }) {
+  const missing = checks.filter((c) => !c.ok);
+  const [open, setOpen] = useState(missing.length > 0);
+  return (
+    <div className={`rounded-2xl border p-3 text-xs ${missing.length ? 'border-amber-300 bg-amber-50' : 'border-neutral-200 bg-white'}`}>
+      <button className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setOpen((v) => !v)}>
+        <span className="font-semibold">
+          {missing.length ? `Setup: ${missing.length} thing${missing.length > 1 ? 's' : ''} missing on this machine` : 'Setup: everything installed ✓'}
+        </span>
+        <span className="text-neutral-500">{open ? 'Hide' : 'Show'}</span>
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-2">
+          {checks.map((c) => (
+            <li key={c.key}>
+              <p className="font-medium">
+                {c.ok ? '✅' : '⚠️'} {c.label}
+              </p>
+              <p className="text-neutral-500">{c.usedFor}</p>
+              {!c.ok && <p className="mt-0.5 rounded bg-white/70 p-1.5 font-mono text-[11px] text-neutral-800">{c.fix}</p>}
+            </li>
+          ))}
+          <li className="text-neutral-500">Full guide: CRM-Marketing-Backend/docs/CREATIVE_LAB_POC.md → "New developer setup".</li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ── Step 1 clean-up: before / after + approve ──────────────────────────────
+
+const orientationLabel: Record<Orientation, string> = {
+  ok: 'Upright',
+  upside_down: 'Upside down',
+  turn_left: 'Turn 90° left',
+  turn_right: 'Turn 90° right',
+};
+
+const cleanStatusLabel = {
+  QUEUED: 'Waiting',
+  WORKING: 'Cleaning…',
+  READY: 'Ready: compare and approve',
+  FAILED: 'Failed',
+  APPROVED: 'Approved: used from now on',
+  REJECTED: 'Rejected: original is used',
+} as const;
+
+function CleanPanel({ asset }: { asset: LabAsset }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const c = asset.cleaned;
+  const working = c?.status === 'QUEUED' || c?.status === 'WORKING';
+  const [orientation, setOrientation] = useState<'' | Orientation>('');
+  useEffect(() => setOrientation(c?.orientationOverride || ''), [asset._id, c?.orientationOverride]);
+
+  const call = async (fn: () => Promise<unknown>, ok?: string) => {
+    try {
+      await fn();
+      await queryClient.invalidateQueries({ queryKey: ['creative-lab-project'] });
+      if (ok) toast({ message: ok, type: 'success' });
+    } catch (err) {
+      toast({ title: 'Could not do that', message: errMsg(err, ''), type: 'error' });
+    }
+  };
+  const clean = (replan = false) =>
+    call(
+      () => api.post(`/admin/creative-lab/assets/${asset._id}/clean`, { replan, ...(orientation ? { orientation } : {}) }),
+      'Clean-up started. Videos take about a minute.'
+    );
+  const setStatus = (status: 'APPROVED' | 'REJECTED' | 'READY') =>
+    call(() => api.post(`/admin/creative-lab/assets/${asset._id}/cleaned/status`, { status }));
+
+  const media = (url: string, label: string) => (
+    <div className="space-y-1">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+      <div className="overflow-hidden rounded-xl bg-neutral-900">
+        {asset.kind === 'video' ? (
+          <video src={url} controls playsInline preload="metadata" className="max-h-[360px] w-full" />
+        ) : (
+          <a href={url} target="_blank" rel="noreferrer">
+            <img src={url} alt={label} className="max-h-[360px] w-full object-contain" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+
+  const pillClass =
+    c?.status === 'APPROVED'
+      ? 'bg-emerald-100 text-emerald-800'
+      : c?.status === 'READY'
+        ? 'bg-violet-100 text-violet-800'
+        : c?.status === 'FAILED' || c?.status === 'REJECTED'
+          ? 'bg-red-100 text-red-700'
+          : 'bg-amber-100 text-amber-800';
+
+  return (
+    <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-semibold">
+          <Wand2 className="w-4 h-4" /> Clean-up (step 1)
+          {c && <Pill className={pillClass}>{cleanStatusLabel[c.status]}</Pill>}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={orientation}
+            onChange={(e) => setOrientation(e.target.value as '' | Orientation)}
+            className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-xs"
+            title="Orientation: auto lets the AI decide"
+          >
+            <option value="">Orientation: auto</option>
+            {(Object.keys(orientationLabel) as Orientation[]).map((o) => (
+              <option key={o} value={o}>
+                {orientationLabel[o]}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" leftIcon={<Wand2 className="w-3.5 h-3.5" />} isLoading={working} disabled={working} onClick={() => clean(false)}>
+            {c ? 'Clean again' : 'Clean up'}
+          </Button>
+          {c && asset.fixPlan && (
+            <Button size="sm" variant="ghost" disabled={working} onClick={() => clean(true)} title="Ask the AI to check the file again (1 request)">
+              Re-check with AI
+            </Button>
+          )}
+        </div>
+      </div>
+      {!c && (
+        <p className="mt-1.5 text-xs text-neutral-600">
+          Safe fixes only: turn upright, straighten, stabilise, reduce grain, light and colour, sharpen, upscale to HD, cut accidental parts.
+          Nothing about the property is changed. Uses 1 AI request to check the file.
+        </p>
+      )}
+      {c?.status === 'FAILED' && <p className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{c.error}</p>}
+      {c?.url && (c.status === 'READY' || c.status === 'APPROVED' || c.status === 'REJECTED') && (
+        <div className="mt-3 space-y-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            {media(asset.url, `Before · ${asset.width ?? '?'}×${asset.height ?? '?'}`)}
+            {media(c.url, `After · ${c.width ?? '?'}×${c.height ?? '?'}${c.durationSeconds ? ` · ${fmtTime(c.durationSeconds)}` : ''}`)}
+          </div>
+          <div className="grid gap-3 text-xs md:grid-cols-2">
+            <div>
+              <p className="mb-1 font-semibold text-neutral-700">What was done</p>
+              <ul className="list-disc space-y-0.5 pl-4 text-neutral-600">
+                {(c.fixes || []).map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </div>
+            {asset.fixPlan && (
+              <div>
+                <p className="mb-1 font-semibold text-neutral-700">AI check</p>
+                <p className="text-neutral-600">{asset.fixPlan.notes}</p>
+                {asset.fixPlan.clutter.length > 0 && (
+                  <p className="mt-1 text-neutral-600">
+                    <span className="font-medium">Clutter (not removed; can be done later with an AI edit):</span>{' '}
+                    {asset.fixPlan.clutter.map((x) => `${x.what} (${x.where})`).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {c.status !== 'APPROVED' && (
+              <Button size="sm" leftIcon={<Check className="w-3.5 h-3.5" />} onClick={() => setStatus('APPROVED')}>
+                Approve cleaned version
+              </Button>
+            )}
+            {c.status !== 'REJECTED' && (
+              <Button size="sm" variant="ghost" onClick={() => setStatus('REJECTED')}>
+                Reject (keep original)
+              </Button>
+            )}
+            {c.status !== 'READY' && (
+              <button className="text-xs text-neutral-500 underline" onClick={() => setStatus('READY')}>
+                Undo
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Brand & location (logo, nearby places, map card) ───────────────────────
+
+interface PlaceRow {
+  name: string;
+  direction: Direction | '';
+  time: string;
+  timeUnit: 'min' | 'hr';
+  distance: string;
+  distanceUnit: 'km' | 'm';
+}
+
+const toRow = (p?: NearbyPlace): PlaceRow => ({
+  name: p?.name || '',
+  direction: p?.direction || '',
+  time: p?.time ? String(p.time.value) : '',
+  timeUnit: p?.time?.unit || 'min',
+  distance: p?.distance ? String(p.distance.value) : '',
+  distanceUnit: p?.distance?.unit || 'km',
+});
+
+const chip = (p: NearbyPlace) =>
+  [p.time && `${p.time.value} ${p.time.unit}`, p.distance && `${p.distance.value} ${p.distance.unit}`].filter(Boolean).join(' · ');
+
+const mapStatus: Record<MapCard['status'], { label: string; className: string }> = {
+  NEEDS_CHECK: { label: 'Needs check', className: 'bg-amber-100 text-amber-800' },
+  APPROVED: { label: 'Approved', className: 'bg-emerald-100 text-emerald-800' },
+  REJECTED: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
+};
+
+const apiError = (err: unknown) =>
+  (err as { response?: { data?: { error?: { code?: string; message?: string; details?: { prompt?: string } } } } })?.response?.data?.error;
+
+function BrandCard({ project }: { project: LabProject }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const logoInput = useRef<HTMLInputElement>(null);
+  const mapInput = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState<PlaceRow[]>([]);
+  const [busy, setBusy] = useState<'' | 'logo' | 'places' | 'generate' | 'gemini' | 'upload'>('');
+  const [manual, setManual] = useState<{ message: string; prompt: string } | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [style, setStyle] = useState<'flat' | '3d'>('flat');
+
+  const saved = project.places || [];
+  useEffect(() => {
+    setRows(saved.length ? saved.map(toRow) : [toRow(), toRow(), toRow(), toRow()]);
+    setManual(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project._id, JSON.stringify(saved)]);
+
+  const cards = project.mapCards || [];
+  const latest = cards[0];
+  useEffect(() => setChecked(false), [latest?._id]);
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['creative-lab-project', project._id] });
+  const base = `/admin/creative-lab/projects/${project._id}`;
+
+  const run = async (kind: typeof busy, fn: () => Promise<unknown>, ok?: string) => {
+    setBusy(kind);
+    try {
+      await fn();
+      await refresh();
+      if (ok) toast({ message: ok, type: 'success' });
+    } catch (err) {
+      toast({ title: 'Could not save', message: errMsg(err, ''), type: 'error' });
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const uploadLogo = (file?: File) => {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    run('logo', () => api.put(`${base}/logo`, form, { headers: { 'Content-Type': 'multipart/form-data' } }), 'Logo saved');
+  };
+
+  const filled = rows.filter((r) => r.name.trim() || r.time || r.distance);
+  const savePlaces = () =>
+    run(
+      'places',
+      () =>
+        api.put(`${base}/places`, {
+          places: filled.map((r) => ({
+            name: r.name,
+            ...(r.direction ? { direction: r.direction } : {}),
+            ...(r.time ? { time: { value: Number(r.time), unit: r.timeUnit } } : {}),
+            ...(r.distance ? { distance: { value: Number(r.distance), unit: r.distanceUnit } } : {}),
+          })),
+        }),
+      'Places saved'
+    );
+
+  const generate = async (engine: 'free' | 'gemini') => {
+    setBusy(engine === 'free' ? 'generate' : 'gemini');
+    setManual(null);
+    try {
+      await api.post(`${base}/map-cards`, { style, engine });
+      await refresh();
+      toast({
+        message: engine === 'free' ? 'Map card made (free). Names and numbers are drawn exactly; check the picture.' : 'Map card made. Check every name and number before approving.',
+        type: 'success',
+      });
+    } catch (err) {
+      const e = apiError(err);
+      if (e?.code === 'IMAGE_API_UNAVAILABLE' && e.details?.prompt) setManual({ message: e.message || '', prompt: e.details.prompt });
+      else toast({ title: 'Could not make the map card', message: errMsg(err, ''), type: 'error' });
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const showPrompt = async () => {
+    try {
+      const res = await api.get(`${base}/map-card/prompt`, { params: { style } });
+      setManual({ message: 'Use this prompt on the Gemini website (attach the logo if there is one), then upload the image here.', prompt: res.data.data.prompt });
+    } catch (err) {
+      toast({ title: 'No prompt yet', message: errMsg(err, ''), type: 'error' });
+    }
+  };
+
+  const uploadMap = (file?: File) => {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    form.append('style', style);
+    run('upload', () => api.post(`${base}/map-cards/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } }), 'Map card added');
+  };
+
+  const setStatus = (card: MapCard, status: MapCard['status']) =>
+    run('', () => api.post(`${base}/map-cards/${card._id}/status`, { status }));
+
+  const setRow = (i: number, patch: Partial<PlaceRow>) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const unsaved = JSON.stringify(filled.map((r) => [r.name.trim(), r.direction, r.time, r.timeUnit, r.distance, r.distanceUnit])) !==
+    JSON.stringify(saved.map(toRow).map((r) => [r.name, r.direction, r.time, r.timeUnit, r.distance, r.distanceUnit]));
+  const selectCls = 'rounded-lg border border-neutral-200 bg-white px-1.5 py-1.5 text-xs';
+  const numCls = 'w-16 rounded-lg border border-neutral-200 px-2 py-1.5 text-xs';
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Palette className="w-4 h-4" /> Brand & location
+        </CardTitle>
+        <p className="text-xs text-neutral-500">Logo and nearby places are used on the map card, reels and posts.</p>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Logo */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Logo / icon</p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-[repeating-conic-gradient(#f4f4f5_0_25%,#fff_0_50%)] bg-[length:12px_12px]">
+              {project.brand?.logoThumb || project.brand?.logoUrl ? (
+                <img src={project.brand.logoThumb || project.brand.logoUrl} alt="Logo" className="max-h-full max-w-full object-contain" />
+              ) : (
+                <ImageIcon className="w-5 h-5 text-neutral-300" />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" isLoading={busy === 'logo'} onClick={() => logoInput.current?.click()}>
+                {project.brand ? 'Replace' : 'Upload logo'}
+              </Button>
+              {project.brand && (
+                <Button size="sm" variant="ghost" onClick={() => run('logo', () => api.delete(`${base}/logo`), 'Logo removed')}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            <input
+              ref={logoInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                uploadLogo(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] text-neutral-400">PNG with a transparent background works best (JPG / WebP also OK, up to 8 MB).</p>
+        </div>
+
+        {/* Nearby places */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Nearby places</p>
+          <div className="space-y-2">
+            {rows.map((r, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-1.5">
+                <input
+                  value={r.name}
+                  onChange={(e) => setRow(i, { name: e.target.value })}
+                  placeholder={i === 0 ? 'e.g. Mohali Airport' : 'Place'}
+                  maxLength={60}
+                  className="min-w-0 flex-1 rounded-lg border border-neutral-200 px-2 py-1.5 text-xs"
+                />
+                <select
+                  value={r.direction}
+                  onChange={(e) => setRow(i, { direction: e.target.value as PlaceRow['direction'] })}
+                  className={selectCls}
+                  title="Direction from the building (north is up)"
+                >
+                  <option value="">Dir.</option>
+                  {DIRECTIONS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <input type="number" min="0" step="any" value={r.time} onChange={(e) => setRow(i, { time: e.target.value })} placeholder="Time" className={numCls} />
+                <select value={r.timeUnit} onChange={(e) => setRow(i, { timeUnit: e.target.value as PlaceRow['timeUnit'] })} className={selectCls}>
+                  <option value="min">min</option>
+                  <option value="hr">hr</option>
+                </select>
+                <input type="number" min="0" step="any" value={r.distance} onChange={(e) => setRow(i, { distance: e.target.value })} placeholder="Dist." className={numCls} />
+                <select value={r.distanceUnit} onChange={(e) => setRow(i, { distanceUnit: e.target.value as PlaceRow['distanceUnit'] })} className={selectCls}>
+                  <option value="km">km</option>
+                  <option value="m">m</option>
+                </select>
+                <button onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} className="p-1 text-neutral-400 hover:text-red-600" title="Remove row">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <button
+              onClick={() => setRows((rs) => [...rs, toRow()])}
+              disabled={rows.length >= 8}
+              className="flex items-center gap-1 text-xs text-neutral-600 hover:text-black disabled:opacity-40"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add place
+            </button>
+            <Button size="sm" isLoading={busy === 'places'} disabled={!unsaved} onClick={savePlaces}>
+              {unsaved ? 'Save places' : 'Saved'}
+            </Button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-neutral-400">Give a time, a distance, or both. Direction (optional) = which way the place is from the building, north up. Up to 8 places. Only what you type is shown.</p>
+        </div>
+
+        {/* Map card */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Map card (AI image)</p>
+          <div className="mb-2 inline-flex rounded-lg border border-neutral-200 p-0.5 text-xs">
+            {(['flat', '3d'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setStyle(k)}
+                className={`rounded-md px-3 py-1 ${style === k ? 'bg-black text-white' : 'text-neutral-600 hover:text-black'}`}
+              >
+                {k === 'flat' ? 'Flat map' : '3D map'}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              leftIcon={latest ? <RefreshCw className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
+              isLoading={busy === 'generate'}
+              disabled={!saved.length || unsaved || Boolean(busy)}
+              onClick={() => generate('free')}
+            >
+              {latest ? 'Regenerate (free)' : 'Generate (free)'}
+            </Button>
+            <Button size="sm" variant="secondary" isLoading={busy === 'gemini'} disabled={!saved.length || unsaved || Boolean(busy)} onClick={() => generate('gemini')}>
+              Gemini (paid)
+            </Button>
+            <Button size="sm" variant="secondary" disabled={!saved.length || unsaved} onClick={showPrompt}>
+              Show prompt
+            </Button>
+            <Button size="sm" variant="ghost" isLoading={busy === 'upload'} disabled={!saved.length} onClick={() => mapInput.current?.click()}>
+              Upload image I made
+            </Button>
+            <input
+              ref={mapInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                uploadMap(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] text-neutral-400">
+            Free: Cloudflare AI draws the background, we add the names, numbers and logo, so text is always exact. Gemini (paid) draws
+            everything, so check its spelling.
+          </p>
+          {!saved.length && <p className="mt-1.5 text-[11px] text-neutral-400">Save at least one place first.</p>}
+          {saved.length > 0 && unsaved && <p className="mt-1.5 text-[11px] text-amber-700">Save the places first.</p>}
+
+          {manual && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-semibold">{manual.message}</p>
+              <p className="mt-1">Make it on the Gemini website instead: copy this prompt, attach the logo, then press "Upload image I made".</p>
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-[11px] text-neutral-700">{manual.prompt}</pre>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                leftIcon={<Copy className="w-3.5 h-3.5" />}
+                onClick={() => navigator.clipboard.writeText(manual.prompt).then(() => toast({ message: 'Prompt copied', type: 'success' }))}
+              >
+                Copy prompt
+              </Button>
+            </div>
+          )}
+
+          {latest && (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-3">
+                <a href={latest.url} target="_blank" rel="noreferrer" className="shrink-0">
+                  <img src={latest.url} alt="Map card" className="h-56 w-auto rounded-xl border border-neutral-200 object-contain" />
+                </a>
+                <div className="space-y-2 text-xs">
+                  <Pill className={mapStatus[latest.status].className}>{mapStatus[latest.status].label}</Pill>
+                  <p className="text-neutral-500">{latest.source === 'gemini' ? 'Made by Gemini' : latest.source === 'cloudflare' ? 'Free: AI background + exact text' : 'Uploaded'} · {latest.style === '3d' ? '3D' : 'flat'} look {latest.variant + 1}</p>
+                  <p className="font-semibold text-neutral-700">Must show exactly:</p>
+                  <ul className="space-y-0.5 text-neutral-600">
+                    {saved.map((p) => (
+                      <li key={p.name}>
+                        {p.name}
+                        {p.direction ? ` (${p.direction})` : ''} · <span className="font-medium">{chip(p)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {latest.status === 'NEEDS_CHECK' && (
+                    <>
+                      <label className="flex items-start gap-1.5">
+                        <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5" />
+                        Names and numbers are correct, nothing extra added
+                      </label>
+                      <div className="flex gap-2">
+                        <Button size="sm" leftIcon={<Check className="w-3.5 h-3.5" />} disabled={!checked} onClick={() => setStatus(latest, 'APPROVED')}>
+                          Approve
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setStatus(latest, 'REJECTED')}>
+                          Reject
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                  {latest.status !== 'NEEDS_CHECK' && (
+                    <button className="underline text-neutral-500" onClick={() => setStatus(latest, 'NEEDS_CHECK')}>
+                      Undo
+                    </button>
+                  )}
+                </div>
+              </div>
+              {cards.length > 1 && (
+                <div className="flex gap-2 overflow-x-auto pt-1">
+                  {cards.slice(1).map((c) => (
+                    <a key={c._id} href={c.url} target="_blank" rel="noreferrer" className="relative shrink-0" title={mapStatus[c.status].label}>
+                      <img src={c.url} alt="" className="h-20 w-auto rounded-lg border border-neutral-200 object-contain" />
+                      <span className={`absolute bottom-1 left-1 h-2 w-2 rounded-full ${c.status === 'APPROVED' ? 'bg-emerald-500' : c.status === 'REJECTED' ? 'bg-red-500' : 'bg-amber-400'}`} />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── Generated results ──────────────────────────────────────────────────────
 
@@ -819,6 +1449,7 @@ function AssetDetail({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {asset.status === 'DONE' && <CleanPanel asset={asset} />}
         <div className="grid gap-4 md:grid-cols-2">
           <div className="overflow-hidden rounded-xl bg-neutral-900">
             {asset.kind === 'video' ? (
